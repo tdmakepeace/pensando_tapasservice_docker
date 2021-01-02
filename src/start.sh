@@ -21,6 +21,8 @@ if [ -d "$DIR" ]
         echo 'socket = /var/lib/mysql/mysql.sock' >> /etc/mysql/my.cnf
         sleep 5s
         service mysql start
+		sleep 5s
+		python3 /app/src/TapasaService.py > /app/PenTapasaService/debug.txt  2>&1
     else
         service mysql start ; mysql < /app/src/db/PenTapasaService.sql 
         sleep 5s

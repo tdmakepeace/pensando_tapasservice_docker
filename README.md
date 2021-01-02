@@ -13,14 +13,15 @@ _cd /home/user_<br>
 _mkdir PenTapasaService_<br>
 _sudo docker run -d -p 5000:5000 -v /home/user/PenTapasaService:/app/PenTapasaService tdmakepeace/pentapasaservice_docker_<br>
 <br>
-If you do not set a local volume folder the image will not be persistant over a upgrade or rebuild.<br>
-_sudo docker run -d -p 5000:5000 tdmakepeace/pentapasaservice_docker_<br>
+**Intial setup might requires you to run the command twice** <br>
+_sudo docker run -d -p 5000:5000 -v /home/user/PenTapasaService:/app/PenTapasaService tdmakepeace/pentapasaservice_docker_<br>
+<br>
 
 <br><br>
 **Using a Docker Volume** <br>
 Another option is to create and use a docker volume, this is recommended<br>
-_sudo docker volume create panhuid_data_<br>
-_sudo docker run -d -p 5000:5000 -v panhuid_data:/app/PenTapasaService tdmakepeace/pentapasaservice_docker_<br>
+_sudo docker volume create pentap_data_<br>
+_sudo docker run -d -p 5000:5000 -v pentap_data:/app/PenTapasaService tdmakepeace/pentapasaservice_docker_<br>
 <br>
 
 # Useful docker commands.
