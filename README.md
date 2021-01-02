@@ -1,5 +1,4 @@
-# Pensando_tapasservice_docker
-Docker image for tap as a service demo
+# Docker image for tap as a service demo
 
 # To deploy
 The following line will deploy the container.<br><br>
@@ -34,4 +33,3 @@ _sudo docker run -d -p 5000:5000 -v panhuid_data:/app/PenTapasaService tdmakepea
 
 # Disclaimer
 This software is provided without support, warranty, or guarantee. Use at your own risk.
-
