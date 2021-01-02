@@ -11,9 +11,9 @@ if [ -d "$DIR" ]
         service mysql start ; mysql < /app/src/db/PenTapasaService.sql 
         sleep 5s
         service mysql stop 
-        cp /app/src/mastervariables.py /app/PenTapasaService/variables.py
+        #cp /app/src/mastervariables.py /app/PenTapasaService/variables.py
         mv /var/lib/mysql/PenTapasaService /app/PenTapasaService
-        ln -s /app/PenTapasaService/PenTapasaService /var/lib/mysql/PenTapasaService
+        ln -s /app/PenTapasaService/TapAsAService /var/lib/mysql/TapAsAService
         chmod 777 /app/PenTapasaService
         mkdir /app/PenTapasaService/backups
         echo '[mysqld]' >> /etc/mysql/my.cnf
@@ -25,8 +25,8 @@ if [ -d "$DIR" ]
         service mysql start ; mysql < /app/src/db/PenTapasaService.sql 
         sleep 5s
         service mysql stop 
-        rm -R /var/lib/mysql/PenTapasaService
-        ln -s /app/PenTapasaService/PenTapasaService /var/lib/mysql/PenTapasaService
+        rm -R /var/lib/mysql/TapAsAService
+        ln -s /app/PenTapasaService/TapAsAService /var/lib/mysql/TapAsAService
         chmod 777 /app/PenTapasaService
         echo '[mysqld]' >> /etc/mysql/my.cnf
         echo 'bind-address = 0.0.0.0' >> /etc/mysql/my.cnf
