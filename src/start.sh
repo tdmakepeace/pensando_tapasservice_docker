@@ -26,17 +26,18 @@ if [ -d "$DIR" ]
 		mv /app/src/variables.py /app/PenTapasaService/variables.py
 		ln -s /app/PenTapasaService/variables.py /app/src/variables.py
     else
-        service mysql start ; mysql < /app/src/db/PenTapasaService.sql 
-        sleep 5s
-        service mysql stop 
-        rm -R /var/lib/mysql/TapAsAService
-        ln -s /app/PenTapasaService/TapAsAService /var/lib/mysql/TapAsAService
-		ln -s /app/PenTapasaService/variables.py /app/src/variables.py
-		chmod 777 /app/PenTapasaService
-        echo '[mysqld]' >> /etc/mysql/my.cnf
-        echo 'bind-address = 0.0.0.0' >> /etc/mysql/my.cnf
-        echo 'socket = /var/lib/mysql/mysql.sock' >> /etc/mysql/my.cnf
-        sleep 5s
+		echo 'original' > /app/PenTapasaService/temp.txt
+        #service mysql start ; mysql < /app/src/db/PenTapasaService.sql 
+        #sleep 5s
+        #service mysql stop 
+        #rm -R /var/lib/mysql/TapAsAService
+        #ln -s /app/PenTapasaService/TapAsAService /var/lib/mysql/TapAsAService
+		#ln -s /app/PenTapasaService/variables.py /app/src/variables.py
+		#chmod 777 /app/PenTapasaService
+        #echo '[mysqld]' >> /etc/mysql/my.cnf
+        #echo 'bind-address = 0.0.0.0' >> /etc/mysql/my.cnf
+        #echo 'socket = /var/lib/mysql/mysql.sock' >> /etc/mysql/my.cnf
+        #sleep 5s
         service mysql start
     fi
     python3 /app/src/TapasaService.py > /app/PenTapasaService/debug.txt  2>&1

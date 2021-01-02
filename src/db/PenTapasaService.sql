@@ -8,7 +8,7 @@ FLUSH privileges;
 SET NAMES utf8mb4;
 SET FOREIGN_KEY_CHECKS = 0;
 
-create or replace table ActiveTaps
+create table IF NOT EXISTS ActiveTaps
 (
 	uid bigint auto_increment
 		primary key,
@@ -18,7 +18,7 @@ create or replace table ActiveTaps
 	TapId bigint null
 );
 
-create or replace table AdminAccounts
+create table IF NOT EXISTS AdminAccounts
 (
 	id int auto_increment
 		primary key,
@@ -29,7 +29,7 @@ create or replace table AdminAccounts
 )
 charset=utf8;
 
-create or replace table TapOwner
+create table IF NOT EXISTS TapOwner
 (
 	UID bigint auto_increment
 		primary key,
@@ -37,7 +37,7 @@ create or replace table TapOwner
 	OwnerUID bigint null
 );
 
-create or replace table Taps
+create table IF NOT EXISTS Taps
 (
 	UID int auto_increment
 		primary key,
@@ -53,7 +53,7 @@ create or replace table Taps
 )
 charset=latin1;
 
-create or replace table UserAccounts
+create table IF NOT EXISTS UserAccounts
 (
 	id int auto_increment
 		primary key,
@@ -64,7 +64,7 @@ create or replace table UserAccounts
 )
 charset=utf8;
 
-create or replace table WorkloadOwner
+create table IF NOT EXISTS WorkloadOwner
 (
 	UID bigint auto_increment
 		primary key,
@@ -72,7 +72,7 @@ create or replace table WorkloadOwner
 	OwnerUID bigint null
 );
 
-create or replace table Workloads
+create table IF NOT EXISTS Workloads
 (
 	UID int auto_increment
 		primary key,

@@ -17,6 +17,18 @@ _sudo docker run -d -p 5000:5000 -v /home/user/PenTapasaService:/app/PenTapasaSe
 _tail -f PenTapasaService/debug.txt_<br>
 <br>
 
+**Admin Login** <br>
+_http://<IP>:5000/adminlogin/_<br>
+_Username - admin_<br>
+_Default Password - Pensando0$_<br>
+<br>
+
+**Consumer User Login** <br>
+_http://<IP>:5000/_<br>
+UserName and passwords and permissions to be set by the admin user.
+<br>
+
+
 <br><br>
 **Using a Docker Volume** <br>
 Another option is to create and use a docker volume, this is recommended<br>
