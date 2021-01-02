@@ -13,8 +13,8 @@ _cd /home/user_<br>
 _mkdir PenTapasaService_<br>
 _sudo docker run -d -p 5000:5000 -v /home/user/PenTapasaService:/app/PenTapasaService tdmakepeace/pentapasaservice_docker_<br>
 <br>
-**Intial setup might requires you to run the command twice** <br>
-_sudo docker run -d -p 5000:5000 -v /home/user/PenTapasaService:/app/PenTapasaService tdmakepeace/pentapasaservice_docker_<br>
+**Check Running** <br>
+_tail -f PenTapasaService/debug.txt_<br>
 <br>
 
 <br><br>
