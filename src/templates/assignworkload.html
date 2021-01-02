@@ -1,0 +1,28 @@
+{% extends 'adminlayout.html' %}
+
+{% block body %}
+<div class='jumbotron text-center'>
+      <h1>Workload assgined to user: {{results2[0]}}<br></h1><br>
+</div>      
+          <a class="btn btn-info" onclick="window.history.back()">Back</a>
+		  <a class="btn btn-success" href="/addassignedworkload/?userid={{userid[0]}}">Assign Workload</a>
+ 
+     <hr>
+	 
+	 <table class="table table-striped">
+         <tr>
+             <th>Name</th>
+             <th></th>
+         </tr>
+         {% for id, name  in results %}
+          <tr>
+             <th>{{name}}</th>
+			 <th><a href="/deleteasignedworkload/?workloadid={{id}}&userid={{userid[0]}}" class="btn btn-danger">Remove</a></th>
+          </tr>
+         {% endfor %}
+                  
+     </table>
+	 
+     
+{% endblock %}
+ 

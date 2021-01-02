@@ -1,0 +1,41 @@
+{% extends 'adminlayout.html' %}
+
+{% block body %}
+<div class='jumbotron text-center'>
+      <h1>Create Workload Target<br></h1><br>
+      </div>
+	  <h2>Currently not supporting multiple entries in any line as part of any array.<br>
+	  Sinlge object only as Demo <br></h2>
+          <a class="btn btn-info" onclick="window.history.back()">Back</a>
+     {% from "includes/_formhelpers.html" import render_field %}
+     <form method="POST" action="">
+         <div class="form-group">
+             {{render_field(form.workloadname, class="form-control")}}
+         </div> 
+         <div class="form-group">
+             {{render_field(form.workloaddesc, class="form-control")}}
+         </div>
+         <div class="form-group">
+             {{render_field(form.worksource1, class="form-control")}}
+         </div> 
+         <div class="form-group">
+             {{render_field(form.workdest1, class="form-control")}}
+         </div>
+         <div class="form-group">
+             {{render_field(form.workprot1, class="form-control")}}
+         </div>
+         <div class="form-group">
+             {{render_field(form.worksource2, class="form-control")}}
+         </div>
+         <div class="form-group">
+             {{render_field(form.workdest2, class="form-control")}}
+         </div>
+         <div class="form-group">
+             {{render_field(form.workprot2, class="form-control")}}
+         </div>
+
+
+         <p><input type="submit" class="btn btn-primary" value ="Submit"></p>
+     </form>
+	 
+{% endblock %}

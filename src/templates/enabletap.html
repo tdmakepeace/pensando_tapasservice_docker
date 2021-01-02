@@ -1,0 +1,52 @@
+{% extends 'adminlayout.html' %}
+
+{% block body %}
+<div class='jumbotron text-center'>
+      <h1>Enable Taps / Workload<br></h1><br>
+</div>      
+
+
+
+<form action="enabletapcreate/">
+	 <table class="table table-striped">
+         <tr>
+             <th>TAP Destination</th>
+             <th>Workload</th>
+			 <th>Duration</th>
+             <th></th>
+         </tr>
+         
+          <tr>
+             <th>
+			  <select name=TapDest width="50">
+			 {% for id, tap  in results %}
+			 <option value={{id}} SELECTED>{{tap}}</option>"
+			  {% endfor %}			
+			 </th>
+             <th>
+			  <select name=WorkDest  width="50">
+			 {% for id, workload in results2 %}
+			 <option value={{id}} SELECTED>{{workload}}</option>"
+			{% endfor %}		
+			 </th> 
+			<th>
+			<select name="Duration"  width="20">
+				<option value=1>1 Minute</option>
+				<option value=5>5 Minutes</option>
+				<option value=10>10 Minutes</option>
+				<option value=30>30 Minutes</option>
+				<option value=60>1 hour</option>
+				<option value=120>2 hour</option>
+			</select>		
+			 </th> 
+           </tr>
+                  
+     </table>
+
+   <button class="btn btn-danger">Enable</button>
+
+</form>
+	 
+     
+{% endblock %}
+ 

@@ -1,0 +1,30 @@
+{% extends 'layout.html' %}
+
+{% block body %}
+<div class='jumbotron text-center'>
+      <h1>Yours Taps registered<br></h1><br>
+</div>      
+ 
+     <hr>
+	 
+	 <table class="table table-striped">
+         <tr>
+             <th>Tap Name</th>
+             <th>Tap Expiry</th>
+               <th>Tap ID</th>
+			 <th></th>
+         </tr>
+         {% for id, TapName, TapExpiry,TapID  in results %}
+          <tr>
+             <th>{{TapName}}</th>
+             <th>{{TapExpiry}}</th> 
+			 <th>{{TapID}}</th> 
+             <th><a href="deletetap/{{id}}" class="btn btn-danger">Delete</a></th>
+          </tr>
+         {% endfor %}
+                  
+     </table>
+	 
+     
+{% endblock %}
+ 

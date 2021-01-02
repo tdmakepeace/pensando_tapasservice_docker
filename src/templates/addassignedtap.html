@@ -1,0 +1,31 @@
+{% extends 'adminlayout.html' %}
+
+{% block body %}
+<div class='jumbotron text-center'>
+      <h1>Taps assgined to user:  {{results2[1]}}<br></h1><br>
+</div>      
+     <a href="/assigntaps/{{results2[0]}}/" class="btn btn-info">Back</a>
+ 
+     <hr>
+	 
+	 <table class="table table-striped">
+         <tr>
+             <th>Name</th>
+             <th>Type</th>
+             <th>Address</th>
+             <th></th>
+         </tr>
+         {% for id, name , type, dest  in results %}
+          <tr>
+             <th>{{name}}</th>
+             <th>{{type}}</th>
+             <th>{{dest}}</th>
+			 <th><a href="/addassignedtapcreate/?Tapid={{id}}&userid={{results2[0]}}" class="btn btn-success">Add</a></th>
+          </tr>
+         {% endfor %}
+                  
+     </table>
+	 
+     
+{% endblock %}
+ 

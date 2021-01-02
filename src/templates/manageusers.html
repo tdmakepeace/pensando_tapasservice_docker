@@ -1,0 +1,35 @@
+{% extends 'adminlayout.html' %}
+
+{% block body %}
+<div class='jumbotron text-center'>
+      <h1>Consumer Users registered<br></h1><br>
+</div>      
+     <a class="btn btn-success" href="/adduser">Add Consumer Users</a>
+ 
+     <hr>
+	 
+	 <table class="table table-striped">
+         <tr>
+             <th>User</th>
+             <th>Email Address</th>
+             <th>Last Update</th>
+             <th></th>
+			 <th></th>
+			 <th></th>
+         </tr>
+         {% for id, username, email, updatedate  in results %}
+          <tr>
+             <th>{{username}}</th>
+             <th>{{email}}</th>
+             <th>{{updatedate}}</th>
+             <th><a href="assigntaps/{{id}}" class="btn btn-success">Assigned Tap</a></th>
+			 <th><a href="assignworkload/{{id}}" class="btn btn-success">Assigned Workload</a></th>
+			 <th><a href="deleteuser/{{id}}" class="btn btn-danger">Delete</a></th>
+          </tr>
+         {% endfor %}
+                  
+     </table>
+	 
+     
+{% endblock %}
+ 

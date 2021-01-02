@@ -1,0 +1,31 @@
+{% extends 'adminlayout.html' %}
+
+{% block body %}
+<div class='jumbotron text-center'>
+      <h1>Admin Users registered<br></h1><br>
+</div>      
+     <a class="btn btn-success" href="/addadmin">Add Admin Users</a>
+ 
+     <hr>
+	 
+	 <table class="table table-striped">
+         <tr>
+             <th>User</th>
+             <th>Email Address</th>
+             <th>Last Update</th>
+             <th></th>
+         </tr>
+         {% for id, username, email, updatedate  in results %}
+          <tr>
+             <th>{{username}}</th>
+             <th>{{email}}</th>
+             <th>{{updatedate}}</th>
+             <th><a href="deleteadmin/{{id}}" class="btn btn-danger">Delete</a></th>
+          </tr>
+         {% endfor %}
+                  
+     </table>
+	 
+     
+{% endblock %}
+ 

@@ -1,0 +1,32 @@
+{% extends 'adminlayout.html' %}
+
+{% block body %}
+<div class='jumbotron text-center'>
+      <h1>workloadsetup Targets<br></h1><br>
+</div>    
+     <a class="btn btn-info" onclick="window.history.back()">Back</a>  
+     <a class="btn btn-success" href="/addworkloadtarget">Create New</a>
+ 
+     <hr>
+	 
+	 <table class="table table-striped">
+         <tr>
+             <th>Name</th>
+			 <th>Description</th>
+			 
+             <th></th><th></th>
+         </tr>
+         {% for id, name, Description  in results %}
+          <tr>
+             <th>{{name}}</th>
+			 <th>{{Description}}</th>
+			 <th><a href="/viewworkloadtarget/{{id}}" class="btn btn-info">View Details</a></th>
+			 <th><a href="/deleteworkloadtarget/{{id}}" class="btn btn-danger">Remove</a></th>
+          </tr>
+         {% endfor %}
+                  
+     </table>
+	 
+     
+{% endblock %}
+ 

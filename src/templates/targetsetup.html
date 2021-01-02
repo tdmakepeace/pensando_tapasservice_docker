@@ -1,0 +1,33 @@
+{% extends 'adminlayout.html' %}
+
+{% block body %}
+<div class='jumbotron text-center'>
+      <h1>Taps Targets<br></h1><br>
+</div>    
+     <a class="btn btn-info" onclick="window.history.back()">Back</a>  
+     <a class="btn btn-success" href="/addtaptarget">Create New</a>
+ 
+     <hr>
+	 
+	 <table class="table table-striped">
+         <tr>
+             <th>Name</th>
+             <th>Type</th>
+             <th>Address</th>
+             <th></th><th></th>
+         </tr>
+         {% for id, name , type, dest  in results %}
+          <tr>
+             <th>{{name}}</th>
+             <th>{{type}}</th>
+             <th>{{dest}}</th>
+			 <th><a href="/viewtaptarget/{{id}}" class="btn btn-info">View Details</a></th>
+			 <th><a href="/deletetaptarget/{{id}}" class="btn btn-danger">Remove</a></th>
+          </tr>
+         {% endfor %}
+                  
+     </table>
+	 
+     
+{% endblock %}
+ 
