@@ -18,13 +18,13 @@ _tail -f PenTapasaService/debug.txt_<br>
 <br>
 
 **Admin Login** <br>
-_http://<IP>:5000/adminlogin/_<br>
+_http://\<IP\>:5000/adminlogin/_<br>
 _Username - admin_<br>
 _Default Password - Pensando0$_<br>
 <br>
 
 **Consumer User Login** <br>
-_http://<IP>:5000/_<br>
+_http://\<IP\>:5000/_<br>
 UserName and passwords and permissions to be set by the admin user.
 <br>
 
