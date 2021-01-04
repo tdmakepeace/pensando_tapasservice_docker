@@ -1473,6 +1473,7 @@ def enabletapcreate():
     TapDest = request.args.get('TapDest', None)
     WorkDest = request.args.get('WorkDest', None)
     Duration = request.args.get('Duration', None)
+    Tapowner = session['id']
     #print(TapDest)
     #print(WorkDest)
     #print(Duration)
@@ -1515,9 +1516,9 @@ def enabletapcreate():
 
         cur3 = conn.cursor()
         state3 = (
-                "insert into ActiveTaps (TapName, TapExpiry)"
-                "Values ('%s',(date_add(now(),INTERVAL %s minute)));") % (
-                     MirrorName, Duration)
+                "insert into ActiveTaps (TapName, TapExpiry, TapOwner)"
+                "Values ('%s',(date_add(now(),INTERVAL %s minute)), %s);") % (
+                     MirrorName, Duration, Tapowner)
         cur3.execute(state3)
         conn.commit()
         cur3.close()
@@ -1643,7 +1644,7 @@ def enabletapcreate():
             cur5 = conn.cursor()
             state5 = (
                          "update ActiveTaps set TapId = %s ,"
-                        "TapExpiry = (date_add(now(),INTERVAL %s minute))"
+                         "TapExpiry = (date_add(now(),INTERVAL %s minute))"
                         "where TapName ='%s';") % (TapId,Duration, MirrorName)
             cur5.execute(state5)
             conn.commit()
