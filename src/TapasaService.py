@@ -171,6 +171,7 @@ def login():
         if account is None:
             msg = 'Incorrect username/password'
             flash(msg, 'warning')
+            cur.close()
             return redirect(url_for('login'))
 
         if check_password_hash(account[2], upassword) is True:
@@ -220,6 +221,7 @@ def adminlogin():
         if account is None:
             msg = 'Incorrect username/password'
             flash(msg, 'warning')
+            cur.close()
             return redirect(url_for('adminlogin'))
 
         if check_password_hash(account[2], upassword) is True:
@@ -235,12 +237,14 @@ def adminlogin():
             ## commit and close ##
             conn.commit()
             cur2.close()
+            cur.close()
             # Redirect to home page
             return redirect(url_for('adminhome'))
         else:
             # Account doesnt exist or username/password incorrect
             msg = 'Incorrect username/password'
             flash(msg, 'warning')
+            cur.close()
             return redirect(url_for('adminlogin'))
         #  return redirect(url_for('login'))
         # Show the login form with message (if any)
@@ -473,6 +477,7 @@ def deleteadmin(id):
             ## cursor ##
             if countid == 1:
                 flash('Master admin can not be deleted', 'info')
+                cur.close()
                 return redirect(url_for('manageadmin'))
             else:
                 #cur = conn.cursor()
@@ -508,6 +513,7 @@ def deleteuser(id):
             ## cursor ##
             if countid == 1:
                 flash('Last consumer user can not be deleted', 'info')
+                cur.close()
                 return redirect(url_for('manageusers'))
             else:
                 #cur2 = conn.cursor()
@@ -660,7 +666,7 @@ def deletetaptarget(id):
 
             flash('Tap Destination Deleted', 'success')
             return redirect(url_for('targetsetup'))
-
+        cur.close()
         return render_template('deletetaptarget.html', form=form)
 
     return redirect(url_for('adminlogin'))
@@ -687,7 +693,7 @@ def deleteworkloadtarget(id):
 
             flash('Workload Destination Deleted', 'success')
             return redirect(url_for('workloadsetup'))
-
+        cur.close()
         return render_template('deleteworkloadtarget.html', form=form)
 
     return redirect(url_for('adminlogin'))
@@ -740,7 +746,7 @@ def viewtaptarget(id):
 
             flash('Tap Destination Edited', 'success')
             return redirect(url_for('targetsetup'))
-
+        cur.close()
         return render_template('viewtaptarget.html', form=form)
     return redirect(url_for('adminlogin'))
 
@@ -793,7 +799,7 @@ def viewworkloadtarget(id):
 
             flash('Workload Destination Edited', 'success')
             return redirect(url_for('workloadsetup'))
-
+        cur.close()
         return render_template('viewworkloadtarget.html', form=form)
     return redirect(url_for('adminlogin'))
 
@@ -901,12 +907,12 @@ def addassignedtap():
     if 'loggedin' in session and session['admin'] == True:
         ## cursor ##
         cur = conn.cursor()
-        cur2 = conn.cursor()
         result = cur.execute(" select uid, Name, Type, INET_NTOA(IPaddr) from Taps where UID not in (select tapuid from TapOwner where OwnerUID=%s);", userid)
         results = cur.fetchall()
-        cur2.execute("select id, username from UserAccounts where id=%s", userid)
-        results2 = cur2.fetchone()
+        cur.execute("select id, username from UserAccounts where id=%s", userid)
+        results2 = cur.fetchone()
         if result > 0:
+            cur.close()
             return render_template('addassignedtap.html', results=results, userid=userid , results2=results2)
         else:
             flash( 'No Taps Left', 'success')
@@ -926,14 +932,14 @@ def addassignedworkload():
     if 'loggedin' in session and session['admin'] == True:
         ## cursor ##
         cur = conn.cursor()
-        cur2 = conn.cursor()
         result = cur.execute(
             " select uid, Name from Workloads where "
             "UID not in (select WorkloadUID from WorkloadOwner where OwnerUID=%s);", userid)
         results = cur.fetchall()
-        cur2.execute("select id, username from UserAccounts where id=%s", userid)
-        results2 = cur2.fetchone()
+        cur.execute("select id, username from UserAccounts where id=%s", userid)
+        results2 = cur.fetchone()
         if result > 0:
+            cur.close()
             return render_template('addassignedworkload.html', results=results, userid=userid , results2=results2)
         else:
             flash('No workloads Left', 'success')
@@ -994,7 +1000,7 @@ def deleteasignedtap():
             cur.close()
             flash('Taps removed', 'success')
             return redirect(url_for('manageusers'))
-
+        cur.close()
         return render_template('deleteasignedtap.html', form=form)
 
     return redirect(url_for('adminlogin'))
@@ -1017,7 +1023,7 @@ def deleteasignedworkload():
             cur.close()
             flash('Workload removed', 'success')
             return redirect(url_for('manageusers'))
-
+        cur.close()
         return render_template('deleteasignedworkload.html', form=form)
 
     return redirect(url_for('adminlogin'))
@@ -1034,6 +1040,7 @@ def assignworkload(id):
         results2 = cur.fetchone()
 
         if result > 0:
+            cur.close()
             return render_template('assignworkload.html', results=results, userid=userid, results2=results2)
         else:
             flash ( 'No Workloads Assigned', 'error')
@@ -1333,7 +1340,7 @@ def admindeletetap(id):
         cur = conn.cursor()
         result = cur.execute(" select uid, TapName , TapExpiry from ActiveTaps where uid = %s;", [id])
         results = cur.fetchone()
-
+        cur.close()
         form = DeleteTapForm(request.form)
         form.tapname.data = results[1]
         form.tapexpiry.data = results[2]
@@ -1361,7 +1368,6 @@ def admindeletetap(id):
                 return redirect(url_for('adminactivetap'))
             return redirect(url_for('adminactivetap'))
 
-        cur.close()
         return render_template('admindeletetap.html', form=form)
     return redirect(url_for('adminlogin'))
 
@@ -1395,7 +1401,7 @@ def activetap():
             # print("MetaData: {}\n".format(item['meta']))
             print(f"Tapname: {tapname}\n")
         '''
-        print(session['id'])
+        #print(session['id'])
         cur = conn.cursor()
         result = cur.execute("select uid, TapName , TapExpiry  , TapId  from ActiveTaps where TapOwner = %s;", [session['id']])
         results = cur.fetchall()
@@ -1678,7 +1684,7 @@ def deletetap(id):
         cur = conn.cursor()
         result = cur.execute(" select uid, TapName , TapExpiry from ActiveTaps where uid = %s;", [id])
         results = cur.fetchone()
-
+        cur.close()
         form = DeleteTapForm(request.form)
         form.tapname.data = results[1]
         form.tapexpiry.data = results[2]
@@ -1704,141 +1710,9 @@ def deletetap(id):
             return redirect(url_for('activetap'))
 
 
-        cur.close()
+
         return render_template('deletetap.html', form=form)
     return redirect(url_for('home'))
-
-
-
-'''
-#Testing code to be removed at end.
-@app.route("/manualtestnetwork", methods=['GET', 'POST'])
-def manualtestnetwork():
-    from psm import ipman, cookiekey
-    print(cookiekey)
-    print(ipman)
-    url = 'https://192.168.102.111/configs/network/v1/tenant/default/networks'
-    headers = {'Content-Type': 'application/json',
-           'cookie': 'sid=eyJjc3JmIjoidTZDSjBReS1oS21rUWFUdUZzVTgwdE9mVjBvRkltMUM5bk5rckFmbThuWT0iLCJleHAiOjE2MDg1NjE4MjAsImlhdCI6MTYwODA0MzQyMCwiaXNzIjoidmVuaWNlIiwicm9sZXMiOm51bGwsInN1YiI6ImFkbWluIiwidGVuYW50IjoiZGVmYXVsdCJ9.WXma7s1SOUd9MysNk5i6n9LuNEJaCVi3Dx6MaCaX0T4Qq-WidN8OSF520pJ_J06HtXWM0Ytn3_R0x3aXe3AQIw'}
-    body = """{"meta":{"name":"VDS-103"},"spec":{"type":"bridged","vlan-id":3,"orchestrators":[{"orchestrator-name":"esxvcent","namespace":"HomeDC"}]}}"""
-    req = requests.post(url, headers=headers, data=body, verify=False)
-    print(req.status_code)
-    print(req.headers)
-    print(req.text)
-    return redirect(url_for('home'))
-
-@app.route("/manualadd", methods=['GET', 'POST'])
-def manualadd():
-    if 'loggedin' in session:
-        try:
-            from psm import ipman, cookiekey, expiry
-        except ImportError:
-            return redirect(url_for('psmsetup'))
-
-        print("manualadd")
-        print(cookiekey)
-        print(ipman)
-        print(expiry)
-        url = ('https://%s/configs/monitoring/v1/tenant/default/MirrorSession' % ipman)
-        headers = ({'Content-Type': 'application/json', 'cookie': cookiekey})
-        body = """{"meta":{"name":"ExampleMirror"},"spec":{"packet-size":2048,"collectors":[{"type":"erspan_type_3","export-config":{"destination":"192.168.102.106","gateway":"192.168.102.1"},"strip-vlan-hdr":null}],"match-rules":[{"source":{"ip-addresses":["192.168.101.0/24"]},"destination":{"ip-addresses":["any"]},"app-protocol-selectors":{"proto-ports":["any"]}},{"source":{"ip-addresses":["any"]},"destination":{"ip-addresses":["192.168.101.0/24"]},"app-protocol-selectors":{"proto-ports":["any"]}}],"packet-filters":["all-packets"],"interfaces":null,"span-id":2}}"""
-        req = requests.post(url, headers=headers, data=body, verify=False)
-        print(req.status_code)
-        print(req.headers)
-        print(req.text)
-        return redirect(url_for('home'))
-
-    return redirect(url_for('login'))
-
-
-@app.route("/manualdelete", methods=['GET', 'POST'])
-def manualdelete():
-#    from psm import ipman, cookiekey
-    print(cookiekey)
-    print(ipman)
-    url = ('https://%s/configs/monitoring/v1/tenant/default/MirrorSession/ExampleMirror' % ipman)
-    headers = ({'Content-Type': 'application/json', 'cookie': cookiekey})
-    #body = """{"meta":{"name":"ExampleMirror"},"spec":{"packet-size":2048,"collectors":[{"type":"erspan_type_3","export-config":{"destination":"192.168.102.106","gateway":"192.168.102.1"},"strip-vlan-hdr":null}],"match-rules":[{"source":{"ip-addresses":["192.168.101.0/24"]},"destination":{"ip-addresses":["any"]},"app-protocol-selectors":{"proto-ports":["any"]}},{"source":{"ip-addresses":["any"]},"destination":{"ip-addresses":["192.168.101.0/24"]},"app-protocol-selectors":{"proto-ports":["any"]}}],"packet-filters":["all-packets"],"interfaces":null,"span-id":2}}"""
-    req = requests.delete(url, headers=headers, verify=False)
-    print(req.status_code)
-    print(req.headers)
-    print(req.text)
-    return redirect(url_for('home'))
-
-
-
-@app.route("/dbadd", methods=['GET', 'POST'])
-def dbadd():
-    if 'loggedin' in session:
-        try:
-            from psm import ipman, cookiekey, expiry
-        except ImportError:
-            return redirect(url_for('psmsetup'))
-
-        #print("dbadd")
-        #print(cookiekey)
-        #print(ipman)
-        #print(expiry)
-
-        ## cursor ##
-        cur1 = conn.cursor()
-        cur1.execute(" select Name, Type, INET_NTOA(IPaddr), INET_NTOA(Gateway), StripVlan, PacketSize from Taps where UID =1")
-        resultstap = cur1.fetchall()
-        for row in resultstap:
-            TapName = row[0]
-            TapType = row[1]
-            TapDest = row[2]
-            TapGateway = row[3]
-            TapStrip = row[4]
-            TapPacket = row[5]
-        cur1.close()
-
-        cur2 = conn.cursor()
-        cur2.execute(" select Name, Source1,Destin1,Prot1, Source2,Destin2,Prot2 from Workloads where uid=1 ")
-        resultswork = cur2.fetchall()
-        for row in resultswork:
-            WorkName = row[0]
-            WorkSoure1 = row[1]
-            WorkDest1 = row[2]
-            WorkPro1 = row[3]
-            WorkSoure2 = row[4]
-            WorkDest2 = row[5]
-            WorkPro2 = row[6]
-        cur2.close()
-
-        MirrorName=(TapName+WorkName)
-        TapTime=300
-
-        url = ('https://%s/configs/monitoring/v1/tenant/default/MirrorSession' % ipman)
-        headers = ({'Content-Type': 'application/json', 'cookie': cookiekey})
-
-        # TODO: Need to work on the build array logic.
-        body = ("""{"meta":{"name":"%s"},"spec":{"packet-size":%s,"collectors":[{"type":"%s",
-        "export-config":{"destination":"%s","gateway":"%s"}}],
-        "match-rules":[{"source":{"ip-addresses":["192.168.101.0/24"]},"destination":{"ip-addresses":["any"]},
-        "app-protocol-selectors":{"proto-ports":["any"]}},{"source":{"ip-addresses":["any"]},
-        "destination":{"ip-addresses":["192.168.101.0/24"]},"app-protocol-selectors":{"proto-ports":["any"]}}],
-        "packet-filters":["all-packets"],"span-id":2}}""" %(MirrorName, TapPacket ,TapType, TapDest, TapGateway))
-        #print(body)
-        req = requests.post(url, headers=headers, data=body, verify=False)
-        print(req.status_code)
-        #print(req.headers)
-        #print(req.text)
-        if req.status_code == 200:
-            cur3 = conn.cursor()
-            state3=("insert into ActiveTaps (TapName, TapExpiry) Values ('%s',(date_add(now(),INTERVAL %s SECOND)));") %(MirrorName,TapTime)
-            cur3.execute(state3)
-            cur3.close()
-            conn.commit()
-        elif req.status_code != 200:
-            flash('Tap failed to be added', 'error')
-            return redirect(url_for('activetap'))
-
-        return redirect(url_for('home'))
-
-    return redirect(url_for('login'))
-
-'''
 
 
 """
@@ -2021,6 +1895,7 @@ def expiryactivetaps():
                 cur.close()
                 time.sleep(60)
             else:
+                cur.close()
                 time.sleep(60)
 
         else:
