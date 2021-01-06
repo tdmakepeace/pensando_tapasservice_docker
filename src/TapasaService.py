@@ -109,24 +109,29 @@ webtimeout = 5
 
 
 """)
-    f.close()
-    f = open("psm.cfg", "w")
-    f.write("""
-[global]
-ipman = 
-adminuser = 
-adminpwd = 
-cookiekey = 
-expiry = 'Sun, 03 Jan 2099 15:02:35 GMT'
-  
-    """)
+
     f.close()
     time.sleep(3)
-    from variables import *
-    # TODO : check if sys.exit(0) is required. as i am re-importing the variables
-    
     sys.exit(0)
-    
+
+try:
+    f = open("psm.cfg")
+except IOError:
+    f = open("psm.cfg", "w")
+    f.write("""
+    [global]
+    ipman = 
+    adminuser = 
+    adminpwd = 
+    cookiekey = 
+    expiry = 'Sun, 03 Jan 2099 15:02:35 GMT'
+
+        """)
+finally:
+    f.close()
+    time.sleep(3)
+
+
 
 # TODO: not sure if this is needed. need to see where else device or newdevice are called.
 """
