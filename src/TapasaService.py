@@ -329,6 +329,79 @@ def changepwd():
 
     return redirect(url_for('login'))
 
+@app.route('/adminchangepwd', methods=['GET', 'POST'])
+def adminchangepwd():
+    ''' Users change password code  called for both the admin users and consumer users. '''
+    if 'loggedin' in session:
+        form = ChangePwd(request.form)
+        if request.method == 'POST' and form.validate():
+            currentpwd = form.currentpwd.data
+            newpwd = form.newpwd.data
+            checkpwd = form.checkpwd.data
+            if session['admin'] == True:
+                if newpwd == checkpwd:
+                    cur = conn.cursor()
+                    cur.execute("SELECT password FROM AdminAccounts WHERE id = %s;", [session['id']])
+                    account = cur.fetchone()
+                    if check_password_hash(account[0], currentpwd) == True:
+                        updatepwd = generate_password_hash(newpwd)
+                        cur2 = conn.cursor()
+                        cur2.execute(" update AdminAccounts set password = %s , updatedate =now() where id =%s;", (updatepwd, [session['id']]))
+                        ## commit and close ##
+                        conn.commit()
+                        cur2.close()
+                        session.pop('loggedin', None)
+                        session.pop('id', None)
+                        session.pop('username', None)
+                        session.pop('admin', None)
+                        cur.close()
+                        return redirect(url_for('home'))
+                        #return render_template('changepwd.html', form=form)
+                    else:
+                        msg = 'Existing Passwords do not match'
+                        flash(msg, 'warning')
+                        cur.close()
+                        return redirect(url_for('changepwd'))
+
+                else:
+                    msg = 'New Passwords do not match'
+                    flash(msg, 'warning')
+                    return redirect(url_for('changepwd'))
+            elif session['admin'] == False:
+                if newpwd == checkpwd:
+                    cur = conn.cursor()
+                    cur.execute("SELECT password FROM UserAccounts WHERE id = %s;", [session['id']])
+                    account = cur.fetchone()
+                    if check_password_hash(account[0], currentpwd) == True:
+                        updatepwd = generate_password_hash(newpwd)
+                        cur2 = conn.cursor()
+                        cur2.execute(" update UserAccounts set password = %s , updatedate =now() where id =%s;",
+                                     (updatepwd, [session['id']]))
+                        ## commit and close ##
+                        conn.commit()
+                        cur2.close()
+                        session.pop('loggedin', None)
+                        session.pop('id', None)
+                        session.pop('username', None)
+                        session.pop('admin', None)
+                        cur.close()
+                        return redirect(url_for('home'))
+                        #return render_template('changepwd.html', form=form)
+                    else:
+                        msg = 'Existing Passwords do not match'
+                        flash(msg, 'warning')
+                        cur.close()
+                        return redirect(url_for('changepwd'))
+
+                else:
+                    msg = 'New Passwords do not match'
+                    flash(msg, 'warning')
+                    return redirect(url_for('changepwd'))
+
+        return render_template('adminchangepwd.html', form=form)
+
+    return redirect(url_for('login'))
+
 
 @app.route('/login/logout')
 def logout():
@@ -1387,7 +1460,12 @@ def activetap():
             return redirect(url_for('psmsetup'))
         url = ('https://%s/configs/monitoring/v1/tenant/default/MirrorSession' % (ipman))
         headers = ({'Content-Type': 'application/json', 'cookie': cookiekey})
-        req = requests.get(url, headers=headers, verify=False)
+        try:
+            req = requests.get(url, headers=headers, verify=False)
+        except requests.ConnectionError:
+            msg = 'No PSM accessable'
+            flash(msg, 'warning')
+            return redirect(url_for('home'))
 
 
         ''' print the number of taps'''
@@ -1429,7 +1507,14 @@ def enabletap():
 
         url = ('https://%s/configs/monitoring/v1/tenant/default/MirrorSession' % (ipman))
         headers = ({'Content-Type': 'application/json', 'cookie': cookiekey})
-        req = requests.get(url, headers=headers, verify=False)
+
+        try:
+            req = requests.get(url, headers=headers, verify=False)
+        except requests.ConnectionError:
+            msg = 'No PSM accessable'
+            flash(msg, 'warning')
+            return redirect(url_for('home'))
+
         tapcount = (((req.json()).get('list-meta')).get('total-count'))
         if tapcount is None:
             tapcount=0
@@ -1949,24 +2034,24 @@ class ViewTapTargetForm(Form):
 
 
 class AddWorkloadTargetForm(Form):
-    workloadname = StringField('Workload service Name', [validators.Length(min=1, max=50, message="Name is required as will be used in the any Tap rules")])
-    workloaddesc = StringField('Workload Description', [validators.Length(min=1, max=50, message="Local Description")])
-    worksource1 = StringField('Workload Source List 1 - Option of format are (a.b.c.d/e or a.b.c.d or any)', [validators.Length(min=1, max=100, message="Format -------" )])
-    workdest1 = StringField('Workload Destination List 1 - Option of format are (a.b.c.d/e or a.b.c.d or any)', [validators.Length(min=1, max=100, message="Format -------")])
-    workprot1 = StringField('Workload Protocol List 1 - Option of format are (icmp or any or tcp/5000-5100)', [validators.Length(min=1, max=100, message="Format -------")])
-    worksource2 = StringField('Workload Source List 2 - Option of format are (a.b.c.d/e or a.b.c.d or any)', [validators.Length(min=0, max=100, message="Format -------")])
-    workdest2 = StringField('Workload Destination List 1 - Option of format are (a.b.c.d/e or a.b.c.d or any)', [validators.Length(min=0, max=100, message="Format -------")])
-    workprot2 = StringField('Workload Protocol List 2 - Option of format are (22 or 22,23,24 or any)', [validators.Length(min=0, max=100, message="Format -------")])
+    workloadname = StringField('Workload Filter Name', [validators.Length(min=1, max=50, message="Name is required as will be used in the any Tap rules")])
+    workloaddesc = StringField('Filter Description', [validators.Length(min=1, max=50, message="Local Description")])
+    worksource1 = StringField('Filter Source 1 - Option of format are (a.b.c.d/e or a.b.c.d or any)', [validators.Length(min=1, max=100, message="Format -------" )])
+    workdest1 = StringField('Filter Destination 1 - Option of format are (a.b.c.d/e or a.b.c.d or any)', [validators.Length(min=1, max=100, message="Format -------")])
+    workprot1 = StringField('Filter Protocol 1 - Option of format are (icmp or any or tcp/5000-5100)', [validators.Length(min=1, max=100, message="Format -------")])
+    worksource2 = StringField('Filter Source 2 - Option of format are (a.b.c.d/e or a.b.c.d or any)', [validators.Length(min=0, max=100, message="Format -------")])
+    workdest2 = StringField('Filter Destination 2 - Option of format are (a.b.c.d/e or a.b.c.d or any)', [validators.Length(min=0, max=100, message="Format -------")])
+    workprot2 = StringField('Filter Protocol 2 - Option of format are (22 or 22,23,24 or any)', [validators.Length(min=0, max=100, message="Format -------")])
 
 class ViewWorkloadTargetForm(Form):
-    workloadname = StringField('Workload service Name', render_kw={'readonly': True})
-    workloaddesc = StringField('Workload Description', [validators.Length(min=1, max=50, message="Local Description")])
-    worksource1 = StringField('Workload Source List 1', [validators.Length(min=1, max=50, message="Format -------" )])
-    workdest1 = StringField('Workload Destination List 1', [validators.Length(min=1, max=100, message="Format -------")])
-    workprot1 = StringField('Workload Protocal List 1', [validators.Length(min=1, max=100, message="Format -------")])
-    worksource2 = StringField('Workload Source List 2', [validators.Length(min=0, max=100, message="Format -------")])
-    workdest2 = StringField('Workload Destination List 1', [validators.Length(min=0, max=100, message="Format -------")])
-    workprot2 = StringField('Workload Protocal List 2', [validators.Length(min=0, max=100, message="Format -------")])
+    workloadname = StringField('Workload Filter Name', render_kw={'readonly': True})
+    workloaddesc = StringField('Filter Description', [validators.Length(min=1, max=50, message="Local Description")])
+    worksource1 = StringField('Filter Source 1 - Option of format are (a.b.c.d/e or a.b.c.d or any)', [validators.Length(min=1, max=100, message="Format -------" )])
+    workdest1 = StringField('Filter Destination 1 - Option of format are (a.b.c.d/e or a.b.c.d or any)', [validators.Length(min=1, max=100, message="Format -------")])
+    workprot1 = StringField('Filter Protocol 1 - Option of format are (icmp or any or tcp/5000-5100)', [validators.Length(min=1, max=100, message="Format -------")])
+    worksource2 = StringField('Filter Source 2 - Option of format are (a.b.c.d/e or a.b.c.d or any)', [validators.Length(min=0, max=100, message="Format -------")])
+    workdest2 = StringField('Filter Destination 2 - Option of format are (a.b.c.d/e or a.b.c.d or any)', [validators.Length(min=0, max=100, message="Format -------")])
+    workprot2 = StringField('Filter Protocol 2 - Option of format are (22 or 22,23,24 or any)', [validators.Length(min=0, max=100, message="Format -------")])
 
 
 class DeleteAdminForm(Form):
