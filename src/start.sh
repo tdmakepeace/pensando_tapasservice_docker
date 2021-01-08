@@ -46,7 +46,9 @@ if [ -d "$DIR" ]
 				echo 'socket = /var/lib/mysql/mysql.sock' >> /etc/mysql/my.cnf
 				sleep 5s
 				service mysql start
-				sleep 15s
+				sleep 5s
+				python3 /app/src/TapasaService.py > /app/PenTapasaService/debug.txt  2>&1
+				sleep 5s
 			else
 				OUT2=$(awk '{ print $1 }' $FILE2)
 				OUT3=$(awk '{ print $1 }' $FILE3)
@@ -65,7 +67,9 @@ if [ -d "$DIR" ]
 						echo 'socket = /var/lib/mysql/mysql.sock' >> /etc/mysql/my.cnf
 						sleep 5s
 						service mysql start
-						sleep 15s
+						sleep 5s
+						python3 /app/src/TapasaService.py > /app/PenTapasaService/debug.txt  2>&1
+						sleep 5s
 				fi
 				service mysql start
 				sleep 15s
