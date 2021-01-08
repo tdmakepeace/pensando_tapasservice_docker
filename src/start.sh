@@ -5,7 +5,7 @@
 DIR=/app/PenTapasaService
 FILE=/app/PenTapasaService/variables.py
 FILE2=/app/PenTapasaService/version.txt
-#FILE3=/app/src/version.txt
+FILE3=/app/src/version.txt
 
 if [ -d "$DIR" ] 
     then
@@ -29,11 +29,11 @@ if [ -d "$DIR" ]
 		mv /app/src/variables.py /app/PenTapasaService/variables.py
 		ln -s /app/PenTapasaService/variables.py /app/src/variables.py
 		sleep 5s
-		echo 'original' > /app/PenTapasaService/version.txt
+		cp $FILE3 $FILE2
     else
 		if [ ! -f "$FILE2" ]
 			then
-				echo 'updated' > /app/PenTapasaService/version.txt
+				cp $FILE3 $FILE2
 				service mysql start ; mysql < /app/src/db/PenTapasaService.sql 
 				sleep 5s
 				service mysql stop 
@@ -46,10 +46,29 @@ if [ -d "$DIR" ]
 				echo 'socket = /var/lib/mysql/mysql.sock' >> /etc/mysql/my.cnf
 				sleep 5s
 				service mysql start
-				sleep 5s
+				sleep 15s
 			else
+				OUT2=$(awk '{ print $1 }' $FILE2)
+				OUT3=$(awk '{ print $1 }' $FILE3)
+				if [ $OUT3 -gt $OUT2 ]
+					then
+						cp $FILE3 $FILE2
+						service mysql start ; mysql < /app/src/db/PenTapasaService.sql 
+						sleep 5s
+						service mysql stop 
+						rm -R /var/lib/mysql/TapAsAService
+						ln -s /app/PenTapasaService/TapAsAService /var/lib/mysql/TapAsAService
+						ln -s /app/PenTapasaService/variables.py /app/src/variables.py
+						chmod 777 /app/PenTapasaService
+						echo '[mysqld]' >> /etc/mysql/my.cnf
+						echo 'bind-address = 0.0.0.0' >> /etc/mysql/my.cnf
+						echo 'socket = /var/lib/mysql/mysql.sock' >> /etc/mysql/my.cnf
+						sleep 5s
+						service mysql start
+						sleep 15s
+				fi
 				service mysql start
-				sleep 5s
+				sleep 15s
 		fi
     fi
     python3 /app/src/TapasaService.py > /app/PenTapasaService/debug.txt  2>&1
