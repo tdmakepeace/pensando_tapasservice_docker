@@ -1419,32 +1419,40 @@ def admindeletetap(id):
         result = cur.execute(" select uid, TapName , TapExpiry from ActiveTaps where uid = %s;", [id])
         results = cur.fetchone()
         cur.close()
-        form = DeleteTapForm(request.form)
-        form.tapname.data = results[1]
-        form.tapexpiry.data = results[2]
-        tapname = results[1]
+        if result > 0:
+            form = DeleteTapForm(request.form)
+            form.tapname.data = results[1]
+            form.tapexpiry.data = results[2]
+            tapname = results[1]
+        else:
+            flash('Tap already deleted', 'success')
+            return redirect(url_for('adminactivetap'))
 
         if request.method == 'POST' and form.validate():
-            url = ('https://%s/configs/monitoring/v1/tenant/default/MirrorSession/%s' % (ipman, tapname))
-            headers = ({'Content-Type': 'application/json', 'cookie': cookiekey})
-            # body = """{"meta":{"name":"ExampleMirror"},"spec":{"packet-size":2048,"collectors":[{"type":"erspan_type_3","export-config":{"destination":"192.168.102.106","gateway":"192.168.102.1"},"strip-vlan-hdr":null}],"match-rules":[{"source":{"ip-addresses":["192.168.101.0/24"]},"destination":{"ip-addresses":["any"]},"app-protocol-selectors":{"proto-ports":["any"]}},{"source":{"ip-addresses":["any"]},"destination":{"ip-addresses":["192.168.101.0/24"]},"app-protocol-selectors":{"proto-ports":["any"]}}],"packet-filters":["all-packets"],"interfaces":null,"span-id":2}}"""
-            req = requests.delete(url, headers=headers, verify=False)
+            cur = conn.cursor()
+            result = cur.execute(" select uid, TapName , TapExpiry from ActiveTaps where uid = %s;", [id])
+            cur.close()
+            if result > 0:
+                url = ('https://%s/configs/monitoring/v1/tenant/default/MirrorSession/%s' % (ipman, tapname))
+                headers = ({'Content-Type': 'application/json', 'cookie': cookiekey})
+                # body = """{"meta":{"name":"ExampleMirror"},"spec":{"packet-size":2048,"collectors":[{"type":"erspan_type_3","export-config":{"destination":"192.168.102.106","gateway":"192.168.102.1"},"strip-vlan-hdr":null}],"match-rules":[{"source":{"ip-addresses":["192.168.101.0/24"]},"destination":{"ip-addresses":["any"]},"app-protocol-selectors":{"proto-ports":["any"]}},{"source":{"ip-addresses":["any"]},"destination":{"ip-addresses":["192.168.101.0/24"]},"app-protocol-selectors":{"proto-ports":["any"]}}],"packet-filters":["all-packets"],"interfaces":null,"span-id":2}}"""
+                req = requests.delete(url, headers=headers, verify=False)
+                # print(req.status_code)
+                # print(req.headers)
+                # print(req.text)
 
-            """
-            print(req.status_code)
-            print(req.headers)
-            print(req.text)
-            """
-
-            if req.status_code == 200:
-                cur2 = conn.cursor()
-                cur2.execute(" Delete from `ActiveTaps` where uid = %s", [id])
-                ## commit and close ##
-                conn.commit()
-                cur2.close()
-                flash('Tap deleted', 'success')
+                if req.status_code == 200:
+                    cur2 = conn.cursor()
+                    cur2.execute(" Delete from `ActiveTaps` where uid = %s", [id])
+                    ## commit and close ##
+                    conn.commit()
+                    cur2.close()
+                    flash('Tap deleted', 'success')
+                    return redirect(url_for('adminactivetap'))
                 return redirect(url_for('adminactivetap'))
-            return redirect(url_for('adminactivetap'))
+            else:
+                flash('Tap already deleted', 'success')
+                return redirect(url_for('adminactivetap'))
 
         return render_template('admindeletetap.html', form=form)
     return redirect(url_for('adminlogin'))
@@ -1775,31 +1783,41 @@ def deletetap(id):
         result = cur.execute(" select uid, TapName , TapExpiry from ActiveTaps where uid = %s;", [id])
         results = cur.fetchone()
         cur.close()
-        form = DeleteTapForm(request.form)
-        form.tapname.data = results[1]
-        form.tapexpiry.data = results[2]
-        tapname = results[1]
-
-        if request.method == 'POST' and form.validate():
-            url = ('https://%s/configs/monitoring/v1/tenant/default/MirrorSession/%s' % (ipman,tapname))
-            headers = ({'Content-Type': 'application/json', 'cookie': cookiekey})
-            # body = """{"meta":{"name":"ExampleMirror"},"spec":{"packet-size":2048,"collectors":[{"type":"erspan_type_3","export-config":{"destination":"192.168.102.106","gateway":"192.168.102.1"},"strip-vlan-hdr":null}],"match-rules":[{"source":{"ip-addresses":["192.168.101.0/24"]},"destination":{"ip-addresses":["any"]},"app-protocol-selectors":{"proto-ports":["any"]}},{"source":{"ip-addresses":["any"]},"destination":{"ip-addresses":["192.168.101.0/24"]},"app-protocol-selectors":{"proto-ports":["any"]}}],"packet-filters":["all-packets"],"interfaces":null,"span-id":2}}"""
-            req = requests.delete(url, headers=headers, verify=False)
-            #print(req.status_code)
-            #print(req.headers)
-            #print(req.text)
-
-            if req.status_code == 200:
-                cur2 = conn.cursor()
-                cur2.execute(" Delete from `ActiveTaps` where uid = %s", [id])
-                ## commit and close ##
-                conn.commit()
-                cur2.close()
-                flash('Tap deleted', 'success')
-                return redirect(url_for('activetap'))
+        if result > 0:
+            form = DeleteTapForm(request.form)
+            form.tapname.data = results[1]
+            form.tapexpiry.data = results[2]
+            tapname = results[1]
+        else:
+            flash('Tap already deleted', 'success')
             return redirect(url_for('activetap'))
 
 
+        if request.method == 'POST' and form.validate():
+            cur = conn.cursor()
+            result = cur.execute(" select uid, TapName , TapExpiry from ActiveTaps where uid = %s;", [id])
+            cur.close()
+            if result > 0:
+                url = ('https://%s/configs/monitoring/v1/tenant/default/MirrorSession/%s' % (ipman, tapname))
+                headers = ({'Content-Type': 'application/json', 'cookie': cookiekey})
+                # body = """{"meta":{"name":"ExampleMirror"},"spec":{"packet-size":2048,"collectors":[{"type":"erspan_type_3","export-config":{"destination":"192.168.102.106","gateway":"192.168.102.1"},"strip-vlan-hdr":null}],"match-rules":[{"source":{"ip-addresses":["192.168.101.0/24"]},"destination":{"ip-addresses":["any"]},"app-protocol-selectors":{"proto-ports":["any"]}},{"source":{"ip-addresses":["any"]},"destination":{"ip-addresses":["192.168.101.0/24"]},"app-protocol-selectors":{"proto-ports":["any"]}}],"packet-filters":["all-packets"],"interfaces":null,"span-id":2}}"""
+                req = requests.delete(url, headers=headers, verify=False)
+                # print(req.status_code)
+                # print(req.headers)
+                # print(req.text)
+
+                if req.status_code == 200:
+                    cur2 = conn.cursor()
+                    cur2.execute(" Delete from `ActiveTaps` where uid = %s", [id])
+                    ## commit and close ##
+                    conn.commit()
+                    cur2.close()
+                    flash('Tap deleted', 'success')
+                    return redirect(url_for('activetap'))
+                return redirect(url_for('activetap'))
+            else:
+                flash('Tap already deleted', 'success')
+                return redirect(url_for('activetap'))
 
         return render_template('deletetap.html', form=form)
     return redirect(url_for('home'))
