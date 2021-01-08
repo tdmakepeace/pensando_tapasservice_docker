@@ -5,7 +5,7 @@
 DIR=/app/PenTapasaService
 FILE=/app/PenTapasaService/variables.py
 FILE2=/app/PenTapasaService/version.txt
-FILE3=/app/src/version.txt
+#FILE3=/app/src/version.txt
 
 if [ -d "$DIR" ] 
     then

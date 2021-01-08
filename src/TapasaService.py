@@ -115,13 +115,13 @@ webtimeout = 5
     sys.exit(0)
 
 try:
-    f = open("psm.cfg")
+    file = open("psm.cfg")
 except IOError:
     file = open("psm.cfg", "w")
     file.write(
         f"[global]\nipman = \nadminuser = \nadminpwd = \ncookiekey = \nexpiry = \'Sun, 03 Jan 2099 15:02:35 GMT\'\n")
-    file.close()
 finally:
+    file.close()
     time.sleep(3)
 
 
