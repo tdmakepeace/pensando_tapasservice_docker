@@ -70,9 +70,10 @@ if [ -d "$DIR" ]
 						sleep 5s
 						python3 /app/src/TapasaService.py > /app/PenTapasaService/debug.txt  2>&1
 						sleep 5s
+					else
+						service mysql start
+						sleep 15s
 				fi
-				service mysql start
-				sleep 15s
 		fi
     fi
     python3 /app/src/TapasaService.py > /app/PenTapasaService/debug.txt  2>&1
