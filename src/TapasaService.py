@@ -117,18 +117,11 @@ webtimeout = 5
 try:
     f = open("psm.cfg")
 except IOError:
-    f = open("psm.cfg", "w")
-    f.write("""
-    [global]
-    ipman = 
-    adminuser = 
-    adminpwd = 
-    cookiekey = 
-    expiry = 'Sun, 03 Jan 2099 15:02:35 GMT'
-
-        """)
+    file = open("psm.cfg", "w")
+    file.write(
+        f"[global]\nipman = \nadminuser = \nadminpwd = \ncookiekey = \nexpiry = \'Sun, 03 Jan 2099 15:02:35 GMT\'\n")
+    file.close()
 finally:
-    f.close()
     time.sleep(3)
 
 
@@ -1554,9 +1547,11 @@ def enabletap():
 
         ''' Import the content for the drop downs'''
         cur = conn.cursor()
-        result = cur.execute("select uid, name as tap from Taps where UID in (select TapUID from TapOwner where OwnerUID=%s)", [session['id']])
+        result = cur.execute("select uid, name as tap from Taps where UID in (select TapUID from TapOwner"
+                             " where OwnerUID=%s)", [session['id']])
         results = cur.fetchall()
-        result2 = cur.execute("select uid, name as workload from Workloads where UID in (select WorkloadUID from WorkloadOwner where OwnerUID=%s)", [session['id']])
+        result2 = cur.execute("select uid, name as workload from Workloads where UID in "
+                              "(select WorkloadUID from WorkloadOwner where OwnerUID=%s)", [session['id']])
         results2 = cur.fetchall()
         if result > 0 and result2 > 0:
             cur.close()
@@ -1567,9 +1562,7 @@ def enabletap():
             cur.close()
             return redirect(url_for('home'))
 
-
     return redirect(url_for('home'))
-
 
 
 @app.route("/enabletapcreate/", methods=['GET', 'POST'])

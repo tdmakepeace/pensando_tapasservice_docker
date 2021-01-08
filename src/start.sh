@@ -4,7 +4,9 @@
 
 DIR=/app/PenTapasaService
 FILE=/app/PenTapasaService/variables.py
-FILE2=/app/PenTapasaService/delete_me_if_upgrade.tmp
+FILE2=/app/PenTapasaService/version.txt
+FILE3=/app/src/version.txt
+
 if [ -d "$DIR" ] 
     then
     if [ ! -f "$FILE" ]
@@ -27,11 +29,11 @@ if [ -d "$DIR" ]
 		mv /app/src/variables.py /app/PenTapasaService/variables.py
 		ln -s /app/PenTapasaService/variables.py /app/src/variables.py
 		sleep 5s
-		echo 'original' > /app/PenTapasaService/delete_me_if_upgrade.tmp
+		echo 'original' > /app/PenTapasaService/version.txt
     else
 		if [ ! -f "$FILE2" ]
 			then
-				echo 'updated' > /app/PenTapasaService/delete_me_if_upgrade.tmp
+				echo 'updated' > /app/PenTapasaService/version.txt
 				service mysql start ; mysql < /app/src/db/PenTapasaService.sql 
 				sleep 5s
 				service mysql stop 
