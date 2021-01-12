@@ -114,17 +114,6 @@ webtimeout = 5
     time.sleep(3)
     sys.exit(0)
 
-try:
-    file = open("psm.cfg")
-except IOError:
-    file = open("psm.cfg", "w")
-    file.write(
-        f"[global]\nipman = \nadminuser = \nadminpwd = \ncookiekey = \nexpiry = \'Sun, 03 Jan 2099 15:02:35 GMT\'\n")
-finally:
-    file.close()
-    time.sleep(3)
-
-
 
 # TODO: not sure if this is needed. need to see where else device or newdevice are called.
 """
