@@ -112,6 +112,10 @@ webtimeout = 5
 
     f.close()
     time.sleep(3)
+    file = open("psm.cfg", "w")
+    file.write(
+        f"[global]\nipman = \nadminuser = \nadminpwd = \ncookiekey = \nexpiry = \'Sun, 03 Jan 2099 15:02:35 GMT\'\n")
+    file.close()
     sys.exit(0)
 
 try:
@@ -120,19 +124,9 @@ except IOError:
     file = open("psm.cfg", "w")
     file.write(
         f"[global]\nipman = \nadminuser = \nadminpwd = \ncookiekey = \nexpiry = \'Sun, 03 Jan 2099 15:02:35 GMT\'\n")
-finally:
     file.close()
     time.sleep(3)
-
-
-
-# TODO: not sure if this is needed. need to see where else device or newdevice are called.
-"""
-try:
-    from device import *
-except ImportError:
-    from newdevice import *
-"""
+    sys.exit(0)
 
 app = Flask(__name__, static_url_path='/static')
 app.config['SESSION_TYPE'] = 'filesystem'
@@ -1570,11 +1564,11 @@ def enabletapcreate():
     TapDest = request.args.get('TapDest', None)
     WorkDest = request.args.get('WorkDest', None)
     Duration = request.args.get('Duration', None)
-    Tapowner = session['id']
     #print(TapDest)
     #print(WorkDest)
     #print(Duration)
     if 'loggedin' in session:
+        Tapowner = session['id']
         ipman = getVar('ipman')[1:-1]
         cookiekey = getVar('cookiekey')[1:-1]
         if len(cookiekey) == 0:
@@ -2027,7 +2021,7 @@ class AddTapTargetForm(Form):
     packet = [('2048', 'Full'),  ('1024', '1024'),  ('512', '512'),('256', '256'),('128', '128'),  ('64', '64')]
     #packet = [(2048, 2048), (1024, 1024), (512, 512), (256, 256), (128, 128), (64, 64)]
     tapvlan =  [('Y', 'Yes'), ('N', 'No')]
-    tapname = StringField('Tap service Name', [validators.Length(min=1, max=50, message="Name is required as will be used in the any Tap rules")])
+    tapname = StringField('Tap service Name', [validators.Regexp(r'^[\w.@+-]+$', message="No Spaces Allowed, valid characters are '_.@+-' "),validators.Length(min=1, max=50, message="Name is required as will be used in the any Tap rules")])
     taptype = SelectField('ERSPAN Type', choices = erspan )
     tapip =  StringField('Destination IP', [validators.IPAddress(ipv4=True , message="Enter a valid IP Address")])
     tapgateway = StringField('Gateway', [validators.IPAddress(ipv4=True , message="Enter a valid IP Address")])
@@ -2050,7 +2044,7 @@ class ViewTapTargetForm(Form):
 
 
 class AddWorkloadTargetForm(Form):
-    workloadname = StringField('Workload Filter Name', [validators.Length(min=1, max=50, message="Name is required as will be used in the any Tap rules")])
+    workloadname = StringField('Workload Filter Name', [validators.Regexp(r'^[\w.@+-]+$', message="No Spaces Allowed, valid characters are '_.@+-' "),validators.Length(min=1, max=50, message="Name is required as will be used in the any Tap rules")])
     workloaddesc = StringField('Filter Description', [validators.Length(min=1, max=50, message="Local Description")])
     worksource1 = StringField('Filter Source 1 - Option of format are (a.b.c.d/e or a.b.c.d or any)', [validators.Length(min=1, max=100, message="Format -------" )])
     workdest1 = StringField('Filter Destination 1 - Option of format are (a.b.c.d/e or a.b.c.d or any)', [validators.Length(min=1, max=100, message="Format -------")])
