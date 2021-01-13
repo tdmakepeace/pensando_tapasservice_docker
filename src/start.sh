@@ -20,14 +20,14 @@ if [ -d "$DIR" ]
         echo 'socket = /var/lib/mysql/mysql.sock' >> /etc/mysql/my.cnf
         sleep 5s
         service mysql start
-	sleep 5s
-	python3 /app/src/TapasaService.py > /app/PenTapasaService/debug.txt  2>&1
-	mv /app/src/variables.py /app/PenTapasaService/variables.py
-	ln -s /app/PenTapasaService/variables.py /app/src/variables.py
-	sleep 5s
-	cp $FILE3 $FILE2
-	echo 'Fresh Install' > /app/PenTapasaService/debug.txt
-	python3 /app/src/TapasaService.py >> /app/PenTapasaService/debug.txt  2>&1
+        sleep 5s
+        python3 /app/src/TapasaService.py > /app/PenTapasaService/debug.txt  2>&1
+        mv /app/src/variables.py /app/PenTapasaService/variables.py
+        ln -s /app/PenTapasaService/variables.py /app/src/variables.py
+        sleep 5s
+        cp $FILE3 $FILE2
+        echo 'Fresh Install' > /app/PenTapasaService/debug.txt
+        python3 /app/src/TapasaService.py >> /app/PenTapasaService/debug.txt  2>&1
     else
 	if [ ! -f "$FILE2" ]
 		then
@@ -46,8 +46,8 @@ if [ -d "$DIR" ]
 			echo 'socket = /var/lib/mysql/mysql.sock' >> /etc/mysql/my.cnf
 			sleep 5s
 			service mysql start
-			sleep 15s
-			echo 'Forced Upgrade' > /app/PenTapasaService/debug.txt
+			sleep 5s
+			echo 'Forced Upgrade, restart the container after 2 minutes' > /app/PenTapasaService/debug.txt
 			python3 /app/src/TapasaService.py >> /app/PenTapasaService/debug.txt  2>&1
 	else
 			OUT2=$(awk '{ print $1 }' $FILE2)
@@ -67,15 +67,15 @@ if [ -d "$DIR" ]
 					echo '[mysqld]' >> /etc/mysql/my.cnf
 					echo 'bind-address = 0.0.0.0' >> /etc/mysql/my.cnf
 					echo 'socket = /var/lib/mysql/mysql.sock' >> /etc/mysql/my.cnf
-					sleep 15s
+					sleep 5s
 					service mysql start
-					sleep 15s
-					echo 'Planned Upgrade' > /app/PenTapasaService/debug.txt
+					sleep 5s
+					echo 'Planned Upgrade, restart the container after 2 minutes' > /app/PenTapasaService/debug.txt
 					python3 /app/src/TapasaService.py >> /app/PenTapasaService/debug.txt  2>&1
 			else
 					service mysql start
-					sleep 15s
-					echo 'Restart' > /app/PenTapasaService/debug.txt
+					sleep 5s
+					echo 'Restarted Lets Go' > /app/PenTapasaService/debug.txt
 					python3 /app/src/TapasaService.py >> /app/PenTapasaService/debug.txt  2>&1
 			fi
 	fi

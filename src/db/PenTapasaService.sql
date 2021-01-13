@@ -10,13 +10,32 @@ SET FOREIGN_KEY_CHECKS = 0;
 
 create table IF NOT EXISTS ActiveTaps
 (
-	uid bigint auto_increment
+	uid bigint auto_increment 
 		primary key,
 	TapName varchar(100) null,
 	TapExpiry datetime null on update CURRENT_TIMESTAMP,
 	TapOwner bigint null,
 	TapId bigint null
 );
+
+create table IF NOT EXISTS TapsAudit
+(
+	uid bigint auto_increment
+		primary key,
+  TransTime datetime DEFAULT CURRENT_TIMESTAMP,
+  UserId int(11) DEFAULT NULL,
+  AdminId int(11) DEFAULT NULL,
+  UserName varchar(50) DEFAULT NULL,
+  TapUID int(11) DEFAULT NULL,
+  TapName varchar(50) DEFAULT NULL,
+  WorkloadUID int(11) DEFAULT NULL,
+  WorkloadName varchar(50) DEFAULT NULL,
+  TapCreated datetime DEFAULT NULL,
+  TapDeleted datetime DEFAULT NULL,
+  DeletedBy varchar(50) DEFAULT NULL,
+  TapActiveId int(11) DEFAULT NULL
+);
+
 
 create table IF NOT EXISTS AdminAccounts
 (
