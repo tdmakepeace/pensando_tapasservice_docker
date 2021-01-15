@@ -516,9 +516,10 @@ def addadmin():
                 (username, useremail, passworduser))
 
             ## commit and close ##
-            app.logger.warning(f'Info - Admin Account : {username} was created')
             conn.commit()
             cur.close()
+            app.logger.warning(
+                f"Info - The Admin account: {username} was added to the system by admin: {session['username']}")
 
             flash('User Added', 'success')
             return redirect(url_for('manageadmin'))
@@ -545,9 +546,10 @@ def adduser():
                 (username, useremail, passworduser))
 
             ## commit and close ##
-            app.logger.warning(f'Info - User Account : {username} was created')
             conn.commit()
             cur.close()
+            app.logger.warning(
+                f"Info - The User account: {username} was added to the system by admin: {session['username']}")
 
             flash('User Added', 'success')
             return redirect(url_for('adduser'))
@@ -586,6 +588,8 @@ def deleteadmin(id):
                 ## commit and close ##
                 conn.commit()
                 cur.close()
+                app.logger.warning(
+                    f"Info - The Admin account: {results[1]} was delete from the system by Admin: {session['username']}")
 
                 flash('Admin deleted', 'success')
                 return redirect(url_for('manageadmin'))
@@ -625,6 +629,8 @@ def deleteuser(id):
                 ## commit and close ##
                 conn.commit()
                 cur.close()
+                app.logger.warning(
+                    f"Info - The User account: {results[1]} was delete from the system by Admin: {session['username']}")
 
                 flash('Consumer user deleted', 'success')
                 return redirect(url_for('manageusers'))
@@ -690,6 +696,9 @@ def psmsetup():
                 file.write(
                     f"[global]\nipman = \'{ipman}\'\nadminuser = \'{adminuser}\'\nadminpwd = \'{adminpwd}\'\ncookiekey = \'{cookiekey}\'\nexpiry = \'{cookieexpiry}\'\n")
                 file.close()
+
+                app.logger.warning(
+                    f"Info - The PSM registration was completed by:{session['username']}")
 
                 return redirect(url_for('adminhome'))
             else:
@@ -771,6 +780,8 @@ def deletetaptarget(id):
             ## commit and close ##
             conn.commit()
             cur.close()
+            app.logger.warning(
+                f"Info - The Tap Destiniation: {results[1]} was Deleted by {session['username']}")
 
             flash('Tap Destination Deleted', 'success')
             return redirect(url_for('targetsetup'))
@@ -799,6 +810,8 @@ def deleteworkloadtarget(id):
             ## commit and close ##
             conn.commit()
             cur.close()
+            app.logger.warning(
+                f"Info - The Workload Filter : {results[1]} was deleted by {session['username']}")
 
             flash('Workload Destination Deleted', 'success')
             return redirect(url_for('workloadsetup'))
@@ -852,6 +865,8 @@ def viewtaptarget(id):
             ## commit and close ##
             conn.commit()
             cur.close()
+            app.logger.warning(
+                f"Info - The Tap Destiniation: {tapname} was Edited by {session['username']}")
 
             flash('Tap Destination Edited', 'success')
             return redirect(url_for('targetsetup'))
@@ -908,6 +923,9 @@ def viewworkloadtarget(id):
             conn.commit()
             cur.close()
 
+            app.logger.warning(
+                f"Info - The Workload Filter: {workloadname} was Edited by {session['username']}")
+
             flash('Workload Destination Edited', 'success')
             return redirect(url_for('workloadsetup'))
         cur.close()
@@ -939,6 +957,9 @@ def addtaptarget():
             ## commit and close ##
             conn.commit()
             cur.close()
+            app.logger.warning(
+                f"Info - The Tap Destiniation: {tapname} was created by {session['username']}")
+
 
             flash('Tap Destination Created', 'success')
             return redirect(url_for('targetsetup'))
@@ -972,6 +993,9 @@ def addworkloadtarget():
             ## commit and close ##
             conn.commit()
             cur.close()
+            app.logger.warning(
+                f"Info - The Workload Filter: {workloadname} was created by {session['username']}")
+
 
             flash('Tap Destination Created', 'success')
             return redirect(url_for('workloadsetup'))
@@ -1074,6 +1098,16 @@ def addassignedtapcreate():
         cur.execute(state)
         cur.close()
         conn.commit()
+        cur2 = conn.cursor()
+        cur2.execute("select uid, name from Taps where uid=%s;", tapid)
+        results1 = cur2.fetchone()
+        cur2.execute("select id, username from UserAccounts where ID=%s;", userid)
+        results2 = cur2.fetchone()
+        cur2.close()
+        app.logger.warning(
+            f'Info - The Tap Destiniation: {results1[1]} was added to assigned  User:  {results2[1]}')
+
+
         return redirect(url_for('addassignedtap', userid=userid))
 
 
@@ -1090,6 +1124,15 @@ def addassignedworkloadcreate():
         cur.execute(state)
         cur.close()
         conn.commit()
+        cur2 = conn.cursor()
+        cur2.execute("select uid, name from Workloads where uid=%s;", workloadid)
+        results1 = cur2.fetchone()
+        cur2.execute("select id, username from UserAccounts where ID=%s;", userid)
+        results2 = cur2.fetchone()
+        cur2.close()
+        app.logger.warning(
+            f'Info - The Workload Filter: {results1[1]} was added to assigned  User:  {results2[1]}')
+
         return redirect(url_for('addassignedworkload', userid=userid))
 
 
@@ -1101,6 +1144,10 @@ def deleteasignedtap():
         cur = conn.cursor()
         cur.execute("select uid, name, type, inet_NTOA(IPaddr) as dest  from Taps where UID=%s;", tapid)
         results = cur.fetchone()
+        cur2 = conn.cursor()
+        cur2.execute("select id, username from UserAccounts where ID=%s;", userid)
+        results2 = cur2.fetchone()
+        cur2.close()
         form = DeleteAssignedTapForm(request.form)
         form.tapname.data = results[1]
         form.destination.data = results[3]
@@ -1109,6 +1156,8 @@ def deleteasignedtap():
             cur.execute("delete from TapOwner where TapUID = %s and OwnerUID =%s;", (tapid, userid))
             conn.commit()
             cur.close()
+            app.logger.warning(
+                f'Info - The Tap Destiniation: {results[1]} was removed from previous assigned  User:  {results2[1]}')
             flash('Taps removed', 'success')
             return redirect(url_for('manageusers'))
         cur.close()
@@ -1125,6 +1174,10 @@ def deleteasignedworkload():
         cur = conn.cursor()
         cur.execute("select uid, name as dest  from Workloads where UID=%s;", workloadid)
         results = cur.fetchone()
+        cur2 = conn.cursor()
+        cur2.execute("select id, username from UserAccounts where ID=%s;", userid)
+        results2 = cur2.fetchone()
+        cur2.close()
         form = DeleteAssignedWorkloadForm(request.form)
         form.workloadname.data = results[1]
 
@@ -1132,6 +1185,8 @@ def deleteasignedworkload():
             cur.execute("delete from WorkloadOwner where WorkloadUID = %s and OwnerUID =%s;", (workloadid, userid))
             conn.commit()
             cur.close()
+            app.logger.warning(
+                f'Info - The Workload Filter: {results[1]} was removed from previous assigned  User:  {results2[1]}')
             flash('Workload removed', 'success')
             return redirect(url_for('manageusers'))
         cur.close()
@@ -1515,6 +1570,8 @@ def admindeletetap(id):
                     cur3.execute(state3)
                     conn.commit()
                     cur3.close()
+                    app.logger.warning(
+                        f'Info - The TAP Destination: {TapDestName} with Filter: {WorkloadDestName} was Deleted from the system by Admin: {username}')
 
                     flash('Tap deleted', 'success')
                     return redirect(url_for('adminactivetap'))
@@ -1948,6 +2005,8 @@ def deletetap(id):
                     cur3.execute(state3)
                     conn.commit()
                     cur3.close()
+                    app.logger.warning(
+                        f'Info - The TAP Destination: {TapDestName} with Filter: {WorkloadDestName} was Deleted from the system by User: {username}')
 
                     flash('Tap deleted', 'success')
                     return redirect(url_for('activetap'))
@@ -2253,6 +2312,7 @@ def cleanauditlog():
         cur.execute(state)
         conn.commit()
         cur.close()
+        app.logger.warning('Info - Audit Log clean down')
 
         time.sleep(43200)
 
@@ -2390,7 +2450,7 @@ class Force(Form):
 
 
 if __name__ == '__main__':
-    handler = RotatingFileHandler('/app/PenTapasaService/debug.log', maxBytes=10000000, backupCount=1)
+    handler = RotatingFileHandler('/app/PenTapasaService/tapas.log', maxBytes=10000000, backupCount=1)
     handler.setLevel(logging.DEBUG)
     formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
     handler.setFormatter(formatter)
