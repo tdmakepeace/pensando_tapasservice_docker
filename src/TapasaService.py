@@ -2121,7 +2121,7 @@ def initBackgroundProcs():
         file = open("psm.cfg")
         file.close()
     except IOError:
-        #app.logger.info("After a upgrade a new psm.cfg need to be built and a few DB Connections might fail to restarts.")
+        app.logger.info("After a upgrade a new psm.cfg need to be built and a few DB Connections might fail to restarts.")
         # time.sleep(10)
         file = open("psm.cfg", "w")
         file.write(
@@ -2164,7 +2164,7 @@ def refreshkey():
             if req.status_code == 200:
                 #			print(req.headers)
                 #			print(req.text)
-                #app.logger.info("Token Expired, and is now refreshed")
+                app.logger.warning("Token Expired, and is now refreshed")
                 info = (req.headers)
                 #		info = (((req.json()).get('list-meta')).get('total-count'))
                 #		result = req.read()
@@ -2189,7 +2189,7 @@ def refreshkey():
                 file.write(
                     f"[global]\nipman = \'{ipman}\'\nadminuser = \'{adminuser}\'\nadminpwd = \'{adminpwd}\'\ncookiekey = \'{cookiekey}\'\nexpiry = \'{cookieexpiry}\'\n")
                 file.close()
-                app.logger.warning("Token Expired, refreshed")
+                #app.logger.warning("Token Expired, refreshed")
 
 
             else:
@@ -2212,7 +2212,7 @@ def expiryactivetaps():
         global conn
         try:
             if (pymysql.connect(host=host, port=port, user=user, passwd=passwd, db=db)):
-                app.logger.info("Background connection exists")
+                #app.logger.info("Background connection exists")
                 conn = pymysql.connect(host=host, port=port, user=user, passwd=passwd, db=db)
             else:
                 # app.logger.error("Background connection reconnect")
@@ -2288,17 +2288,17 @@ def cleanauditlog():
         global conn
         try:
             if (pymysql.connect(host=host, port=port, user=user, passwd=passwd, db=db)):
-                app.logger.info("Background connection exists")
+                #app.logger.info("Background connection exists")
                 conn = pymysql.connect(host=host, port=port, user=user, passwd=passwd, db=db)
             else:
-                app.logger.error("Background connection reconnect")
+                #app.logger.error("Background connection reconnect")
                 conn = pymysql.connect(host=host, port=port, user=user, passwd=passwd, db=db)
                 time.sleep(2)
                 conn = pymysql.connect(host=host, port=port, user=user, passwd=passwd, db=db)
                 time.sleep(2)
                 conn = pymysql.connect(host=host, port=port, user=user, passwd=passwd, db=db)
         except pymysql.err.OperationalError as e:
-            app.logger.error(f"Background DBdown: {e}")
+            #app.logger.error(f"Background DBdown: {e}")
             conn = pymysql.connect(host=host, port=port, user=user, passwd=passwd, db=db)
             time.sleep(2)
             conn = pymysql.connect(host=host, port=port, user=user, passwd=passwd, db=db)
