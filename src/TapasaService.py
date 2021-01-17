@@ -1,55 +1,3 @@
-# Copyright (c) 2020, Pensando Systems
-#
-# Permission to use, copy, modify, and/or distribute this software for any
-# purpose with or without fee is hereby granted, provided that the above
-# copyright notice and this permission notice appear in all copies.
-#
-# THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
-# WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
-# MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
-# ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
-# WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
-# ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
-# OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
-# Author: Toby Makepeace <toby@pensando.io>
-
-"""
-Pensando Systems Tap As A Server
-
-The tool is just to provide a demo of the capabilities of building
-Tap as a Service for the network/compute consumers/business units.
-
-|Instructions/Usage statement including parameters|
-
-This software is provided without support, warranty, or guarantee. Use at your own risk.
-"""
-
-''' A one-line docstring '''
-# TODO: Write some code after this block comment
-# FIXME: What needs to be fixes
-# NOTE: a simple refernce note.
-
-"""
-A multiline docstring. 
-Keyword arguments: 
-parameter -- an example parameter (default False) 
-"""
-
-"""
-Each section of web code needs to validate the loggedin session cookie. 
-example:
-    if 'loggedin' in session:
-        <then>
-    return redirect(url_for('login'))
-
-if you need to do a admin password reset from to get the output needed to be loaded in the DB
-from a python console. 
-> password1 = generate_password_hash('Pensando0$')
-> print password1
-from werkzeug.security import generate_password_hash, check_password_hash
-print(generate_password_hash('test'))
-"""
-
 # TODO: The threading and time options will be needed when i create the background jobs.
 import threading
 import time
@@ -58,15 +6,17 @@ import sys
 import pymysql
 import os
 import json
+import logging
+from logging.handlers import RotatingFileHandler
 from datetime import datetime, timedelta
-from flask import Flask, render_template, flash, redirect, url_for, session, request,  send_from_directory
-from wtforms import Form, StringField,  IntegerField, PasswordField, BooleanField, validators, SelectField
+from flask import Flask, render_template, flash, redirect, url_for, session, request, send_from_directory
+from wtforms import Form, StringField, IntegerField, PasswordField, BooleanField, validators, SelectField
 from wtforms.fields.html5 import EmailField
 from werkzeug.security import generate_password_hash, check_password_hash
 from configparser import ConfigParser
 
-# TODO: once run by the installer, change to /home/tmakepeace/Tapasaservice
-sys.path.append("/app/PenTapasaService")
+# sys.path.append("/app/PenTapasaService")
+
 
 try:
     from variables import *
@@ -91,22 +41,24 @@ webport = '5000'
 # the host the MYSQL database is hosted on, FQDN or IP is required.
 # 127.0.0.1 for local or docker config.
 host = '127.0.0.1' 
- 
+
 # the default port that the MySQL database is running on. 
 port = 3306 
- 
+
 # The user to connect to the MySQL database. 
 user = 'Pensando' 
- 
+
 # The Password of the user connecting to the MySQL database. 
 passwd = 'Pensando0$' 
- 
+
 # The Name of the database the data is to be store in. 
 db = 'TapAsAService' 
 
 # The web service idle timeout for logged in users. 
 webtimeout = 5 
 
+# The length of time in days the audit log are  maintained in the DB
+auditlog = 7
 
 """)
 
@@ -114,28 +66,26 @@ webtimeout = 5
     time.sleep(3)
     file = open("psm.cfg", "w")
     file.write(
-        f"[global]\nipman = \nadminuser = \nadminpwd = \ncookiekey = \nexpiry = \'Sun, 03 Jan 2099 15:02:35 GMT\'\n")
+        f"[global]\nipman = \nadminuser = \nadminpwd = \ncookiekey = \nexpiry = \'Mon, 31 Dec 2029 00:00:01 GMT\'\n")
     file.close()
     sys.exit(0)
 
+# TODO: not sure if this is needed. need to see where else device or newdevice are called.
+"""
 try:
-    file = open("psm.cfg")
-except IOError:
-    file = open("psm.cfg", "w")
-    file.write(
-        f"[global]\nipman = \nadminuser = \nadminpwd = \ncookiekey = \nexpiry = \'Sun, 03 Jan 2099 15:02:35 GMT\'\n")
-    file.close()
-    time.sleep(3)
-    sys.exit(0)
+    from device import *
+except ImportError:
+    from newdevice import *
+"""
 
 app = Flask(__name__, static_url_path='/static')
 app.config['SESSION_TYPE'] = 'filesystem'
 app.config['SECRET_KEY'] = 'PensandoTapAsAService'
 app.config['SESSION_REFRESH_EACH_REQUEST'] = True
-# TODO: need to change the expiry time back to 5 minutes.
 app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(minutes=webtimeout)
 
-conn = pymysql.connect(host=host, port=port, user=user, passwd=passwd, db=db)
+
+# conn = pymysql.connect(host=host, port=port, user=user, passwd=passwd, db=db)
 
 # Note: The web structure is defined from this point onwards.
 
@@ -154,6 +104,26 @@ def login():
         username = request.form['username']
         upassword = request.form['password']
         # Check if account exists using MySQL
+        global conn
+        try:
+            if (pymysql.connect(host=host, port=port, user=user, passwd=passwd, db=db)):
+                app.logger.info("connection exists")
+                conn = pymysql.connect(host=host, port=port, user=user, passwd=passwd, db=db)
+            else:
+                app.logger.error("connection reconnect")
+                conn = pymysql.connect(host=host, port=port, user=user, passwd=passwd, db=db)
+                time.sleep(2)
+                conn = pymysql.connect(host=host, port=port, user=user, passwd=passwd, db=db)
+                time.sleep(2)
+                conn = pymysql.connect(host=host, port=port, user=user, passwd=passwd, db=db)
+        except pymysql.err.OperationalError as e:
+            app.logger.error(f"DBdown: {e}")
+            conn = pymysql.connect(host=host, port=port, user=user, passwd=passwd, db=db)
+            time.sleep(2)
+            conn = pymysql.connect(host=host, port=port, user=user, passwd=passwd, db=db)
+            time.sleep(2)
+            conn = pymysql.connect(host=host, port=port, user=user, passwd=passwd, db=db)
+
         cur = conn.cursor()
         cur.execute('SELECT * FROM UserAccounts WHERE username = %s;', username)
         # Fetch one record and return result
@@ -173,6 +143,9 @@ def login():
             session['username'] = account[1]
             session['admin'] = False
             session.permanent = True
+
+            app.logger.warning(f'Info - User: {username} Loggged In ')
+
             # Redirect to home page
             cur2 = conn.cursor()
             cur2.execute(" update UserAccounts set  updatedate =now() where id =%s;",
@@ -184,6 +157,7 @@ def login():
             return redirect(url_for('home'))
         else:
             # Account doesnt exist or username/password incorrect
+            app.logger.warning(f'Info - User: {username} Failed to login')
             msg = 'Incorrect username/password'
             flash(msg, 'warning')
             cur.close()
@@ -192,18 +166,58 @@ def login():
         # Show the login form with message (if any)
 
     return render_template('loginindex.html')
-    #, msg=msg)
+    # , msg=msg)
 
 
 @app.route('/adminlogin/', methods=['GET', 'POST'])
 def adminlogin():
     # FIX: the error messages are not being displayed.
     # Check if "username" and "password" POST requests exist (user submitted form)
+    #app.logger.error('ADMIN Login')
     if request.method == 'POST' and 'username' in request.form and 'password' in request.form:
         # Create variables for easy access
         username = request.form['username']
         upassword = request.form['password']
         # Check if account exists using MySQL
+        """        try:
+            cur = conn.cursor()
+        except Exception as e:
+            conn = pymysql.connect(host=host, port=port, user=user, passwd=passwd, db=db)
+            cur = conn.cursor()
+            print(f"DBdown: {e}")
+            # sys.exit(0)
+
+        global conn
+        conn = pymysql.connect(host=host, port=port, user=user, passwd=passwd, db=db)
+        try:
+            if conn.cursor():
+                print("connection exists")
+            else:
+                print("connection reconnect")
+                conn = pymysql.connect(host=host, port=3306, user=user, passwd=passwd, db=db)
+        except Exception as e:
+            print(f"DBdown: {e}")
+        """
+        global conn
+        try:
+            if (pymysql.connect(host=host, port=port, user=user, passwd=passwd, db=db)):
+                app.logger.info("connection exists")
+                conn = pymysql.connect(host=host, port=port, user=user, passwd=passwd, db=db)
+            else:
+                app.logger.error("connection reconnect")
+                conn = pymysql.connect(host=host, port=port, user=user, passwd=passwd, db=db)
+                time.sleep(2)
+                conn = pymysql.connect(host=host, port=port, user=user, passwd=passwd, db=db)
+                time.sleep(2)
+                conn = pymysql.connect(host=host, port=port, user=user, passwd=passwd, db=db)
+        except pymysql.err.OperationalError as e:
+            app.logger.error(f"DBdown: {e}")
+            conn = pymysql.connect(host=host, port=port, user=user, passwd=passwd, db=db)
+            time.sleep(2)
+            conn = pymysql.connect(host=host, port=port, user=user, passwd=passwd, db=db)
+            time.sleep(2)
+            conn = pymysql.connect(host=host, port=port, user=user, passwd=passwd, db=db)
+
         cur = conn.cursor()
         cur.execute('SELECT * FROM AdminAccounts WHERE username = %s;', username)
         # Fetch one record and return result
@@ -223,6 +237,9 @@ def adminlogin():
             session['username'] = account[1]
             session['admin'] = True
             session.permanent = True
+
+            app.logger.warning(f'Info - Admin: {username} Loggged In ')
+
             cur2 = conn.cursor()
             cur2.execute(" update AdminAccounts set updatedate =now() where id =%s;",
                          ([session['id']]))
@@ -234,6 +251,7 @@ def adminlogin():
             return redirect(url_for('adminhome'))
         else:
             # Account doesnt exist or username/password incorrect
+            app.logger.warning(f'Info - Admin: {username} Failed to login')
             msg = 'Incorrect username/password'
             flash(msg, 'warning')
             cur.close()
@@ -242,11 +260,13 @@ def adminlogin():
         # Show the login form with message (if any)
 
     return render_template('adminloginindex.html')
-    #, msg=msg)
+    # , msg=msg)
+
 
 """
 LOGGED IN SECTION
 """
+
 
 @app.route('/changepwd', methods=['GET', 'POST'])
 def changepwd():
@@ -260,13 +280,15 @@ def changepwd():
             if session['admin'] == True:
                 if newpwd == checkpwd:
                     cur = conn.cursor()
-                    cur.execute("SELECT password FROM AdminAccounts WHERE id = %s;", [session['id']])
+                    cur.execute("SELECT password , username FROM AdminAccounts WHERE id = %s;", [session['id']])
                     account = cur.fetchone()
                     if check_password_hash(account[0], currentpwd) == True:
                         updatepwd = generate_password_hash(newpwd)
                         cur2 = conn.cursor()
-                        cur2.execute(" update AdminAccounts set password = %s , updatedate =now() where id =%s;", (updatepwd, [session['id']]))
+                        cur2.execute(" update AdminAccounts set password = %s , updatedate =now() where id =%s;",
+                                     (updatepwd, [session['id']]))
                         ## commit and close ##
+                        app.logger.warning(f'Info - Admin : {account[1]} Changed password')
                         conn.commit()
                         cur2.close()
                         session.pop('loggedin', None)
@@ -275,7 +297,7 @@ def changepwd():
                         session.pop('admin', None)
                         cur.close()
                         return redirect(url_for('home'))
-                        #return render_template('changepwd.html', form=form)
+                        # return render_template('changepwd.html', form=form)
                     else:
                         msg = 'Existing Passwords do not match'
                         flash(msg, 'warning')
@@ -289,7 +311,7 @@ def changepwd():
             elif session['admin'] == False:
                 if newpwd == checkpwd:
                     cur = conn.cursor()
-                    cur.execute("SELECT password FROM UserAccounts WHERE id = %s;", [session['id']])
+                    cur.execute("SELECT password ,username FROM UserAccounts WHERE id = %s;", [session['id']])
                     account = cur.fetchone()
                     if check_password_hash(account[0], currentpwd) == True:
                         updatepwd = generate_password_hash(newpwd)
@@ -297,6 +319,7 @@ def changepwd():
                         cur2.execute(" update UserAccounts set password = %s , updatedate =now() where id =%s;",
                                      (updatepwd, [session['id']]))
                         ## commit and close ##
+                        app.logger.warning(f'Info - User : {account[1]} Changed password')
                         conn.commit()
                         cur2.close()
                         session.pop('loggedin', None)
@@ -305,7 +328,7 @@ def changepwd():
                         session.pop('admin', None)
                         cur.close()
                         return redirect(url_for('home'))
-                        #return render_template('changepwd.html', form=form)
+                        # return render_template('changepwd.html', form=form)
                     else:
                         msg = 'Existing Passwords do not match'
                         flash(msg, 'warning')
@@ -321,6 +344,7 @@ def changepwd():
 
     return redirect(url_for('login'))
 
+
 @app.route('/adminchangepwd', methods=['GET', 'POST'])
 def adminchangepwd():
     ''' Users change password code  called for both the admin users and consumer users. '''
@@ -333,13 +357,15 @@ def adminchangepwd():
             if session['admin'] == True:
                 if newpwd == checkpwd:
                     cur = conn.cursor()
-                    cur.execute("SELECT password FROM AdminAccounts WHERE id = %s;", [session['id']])
+                    cur.execute("SELECT password, username  FROM AdminAccounts WHERE id = %s;", [session['id']])
                     account = cur.fetchone()
                     if check_password_hash(account[0], currentpwd) == True:
                         updatepwd = generate_password_hash(newpwd)
                         cur2 = conn.cursor()
-                        cur2.execute(" update AdminAccounts set password = %s , updatedate =now() where id =%s;", (updatepwd, [session['id']]))
+                        cur2.execute(" update AdminAccounts set password = %s , updatedate =now() where id =%s;",
+                                     (updatepwd, [session['id']]))
                         ## commit and close ##
+                        app.logger.warning(f'Info - Admin : {account[1]} Changed password')
                         conn.commit()
                         cur2.close()
                         session.pop('loggedin', None)
@@ -348,7 +374,7 @@ def adminchangepwd():
                         session.pop('admin', None)
                         cur.close()
                         return redirect(url_for('home'))
-                        #return render_template('changepwd.html', form=form)
+                        # return render_template('changepwd.html', form=form)
                     else:
                         msg = 'Existing Passwords do not match'
                         flash(msg, 'warning')
@@ -362,7 +388,7 @@ def adminchangepwd():
             elif session['admin'] == False:
                 if newpwd == checkpwd:
                     cur = conn.cursor()
-                    cur.execute("SELECT password FROM UserAccounts WHERE id = %s;", [session['id']])
+                    cur.execute("SELECT password, username  FROM UserAccounts WHERE id = %s;", [session['id']])
                     account = cur.fetchone()
                     if check_password_hash(account[0], currentpwd) == True:
                         updatepwd = generate_password_hash(newpwd)
@@ -370,6 +396,7 @@ def adminchangepwd():
                         cur2.execute(" update UserAccounts set password = %s , updatedate =now() where id =%s;",
                                      (updatepwd, [session['id']]))
                         ## commit and close ##
+                        app.logger.warning(f'Info - User : {account[1]} Changed password')
                         conn.commit()
                         cur2.close()
                         session.pop('loggedin', None)
@@ -378,7 +405,7 @@ def adminchangepwd():
                         session.pop('admin', None)
                         cur.close()
                         return redirect(url_for('home'))
-                        #return render_template('changepwd.html', form=form)
+                        # return render_template('changepwd.html', form=form)
                     else:
                         msg = 'Existing Passwords do not match'
                         flash(msg, 'warning')
@@ -398,26 +425,29 @@ def adminchangepwd():
 @app.route('/login/logout')
 def logout():
     ''' Remove session data, this will log the user out and return them to the login page '''
-    if session['admin'] == True:
-        session.pop('loggedin', None)
-        session.pop('id', None)
-        session.pop('username', None)
-        session.pop('admin', None)
-        # Redirect to login page
-        return redirect(url_for('adminlogin'))
-    elif session['admin'] == False:
-        session.pop('loggedin', None)
-        session.pop('id', None)
-        session.pop('username', None)
-        session.pop('admin', None)
-        # Redirect to login page
-        return redirect(url_for('login'))
-    
+    if 'loggedin' in session:
+        if session['admin'] == True:
+            session.pop('loggedin', None)
+            session.pop('id', None)
+            session.pop('username', None)
+            session.pop('admin', None)
+            # Redirect to login page
+            return redirect(url_for('adminlogin'))
+        elif session['admin'] == False:
+            session.pop('loggedin', None)
+            session.pop('id', None)
+            session.pop('username', None)
+            session.pop('admin', None)
+            # Redirect to login page
+            return redirect(url_for('login'))
+    return redirect(url_for('login'))
+
 
 """
 MANAGED USER SECTION
-"""	
-    
+"""
+
+
 @app.route("/manageadmin")
 def manageadmin():
     """
@@ -428,7 +458,7 @@ def manageadmin():
         cur = conn.cursor()
         result = cur.execute("select id, username , email, updatedate  from AdminAccounts;")
         results = cur.fetchall()
-        #print(results)
+        # print(results)
         if result > 0:
             cur.close()
             return render_template('manageadmin.html', results=results)
@@ -440,6 +470,7 @@ def manageadmin():
 
     return redirect(url_for('adminlogin'))
 
+
 @app.route("/manageusers")
 def manageusers():
     ''' Display all the consumer users allowing you to add/edit/remove accounts '''
@@ -447,7 +478,7 @@ def manageusers():
         cur = conn.cursor()
         result = cur.execute("select id, username , email, updatedate  from UserAccounts;")
         results = cur.fetchall()
-        #print(results)
+        # print(results)
         if result > 0:
             cur.close()
             return render_template('manageusers.html', results=results)
@@ -459,14 +490,16 @@ def manageusers():
 
     return redirect(url_for('adminlogin'))
 
+
 """
 ADMIN MANAGER SECTION
 """
 
+
 @app.route("/addadmin", methods=['GET', 'POST'])
 def addadmin():
-    """ 
-    Add Admin section,  
+    """
+    Add Admin section,
     """
     if 'loggedin' in session and session['admin'] == True:
         form = AddAdminForm(request.form)
@@ -485,6 +518,8 @@ def addadmin():
             ## commit and close ##
             conn.commit()
             cur.close()
+            app.logger.warning(
+                f"Info - The Admin account: {username} was added to the system by admin: {session['username']}")
 
             flash('User Added', 'success')
             return redirect(url_for('manageadmin'))
@@ -492,6 +527,7 @@ def addadmin():
         #        return render_template('adduser.html')
         return render_template('addadmin.html', form=form)
     return redirect(url_for('adminlogin'))
+
 
 @app.route("/adduser", methods=['GET', 'POST'])
 def adduser():
@@ -512,6 +548,8 @@ def adduser():
             ## commit and close ##
             conn.commit()
             cur.close()
+            app.logger.warning(
+                f"Info - The User account: {username} was added to the system by admin: {session['username']}")
 
             flash('User Added', 'success')
             return redirect(url_for('adduser'))
@@ -545,17 +583,20 @@ def deleteadmin(id):
                 cur.close()
                 return redirect(url_for('manageadmin'))
             else:
-                #cur = conn.cursor()
+                # cur = conn.cursor()
                 cur.execute(" Delete from `AdminAccounts` where id = %s", [id])
                 ## commit and close ##
                 conn.commit()
                 cur.close()
+                app.logger.warning(
+                    f"Info - The Admin account: {results[1]} was delete from the system by Admin: {session['username']}")
 
                 flash('Admin deleted', 'success')
                 return redirect(url_for('manageadmin'))
         cur.close()
         return render_template('deleteadmin.html', form=form)
     return redirect(url_for('adminlogin'))
+
 
 @app.route("/deleteuser/<string:id>/", methods=['GET', 'POST'])
 def deleteuser(id):
@@ -581,26 +622,27 @@ def deleteuser(id):
                 cur.close()
                 return redirect(url_for('manageusers'))
             else:
-                #cur2 = conn.cursor()
+                # cur2 = conn.cursor()
                 cur.execute(" Delete from `UserAccounts` where id = %s", [id])
                 cur.execute(" Delete from `TapOwner` where OwnerUID = %s", [id])
                 cur.execute(" Delete from `WorkloadOwner` where OwnerUID = %s", [id])
                 ## commit and close ##
                 conn.commit()
                 cur.close()
+                app.logger.warning(
+                    f"Info - The User account: {results[1]} was delete from the system by Admin: {session['username']}")
 
                 flash('Consumer user deleted', 'success')
                 return redirect(url_for('manageusers'))
         cur.close()
         return render_template('deleteuser.html', form=form)
     return redirect(url_for('adminlogin'))
-    
-    
-    
-    
+
+
 """
 SETUP SECTION
-"""	
+"""
+
 
 @app.route("/psmsetup", methods=['GET', 'POST'])
 def psmsetup():
@@ -617,7 +659,14 @@ def psmsetup():
             #			print(jsonbody)
             #			print(body)
             #			print(headers)
-            req = requests.post(url, headers=headers, data=jsonbody, verify=False)
+
+            try:
+                req = requests.post(url, headers=headers, data=jsonbody, verify=False)
+            except requests.ConnectionError:
+                msg = 'No PSM accessable'
+                flash(msg, 'warning')
+                return redirect(url_for('home'))
+
             #			print(req.status_code)
             if req.status_code == 200:
                 #			print(req.headers)
@@ -648,6 +697,9 @@ def psmsetup():
                     f"[global]\nipman = \'{ipman}\'\nadminuser = \'{adminuser}\'\nadminpwd = \'{adminpwd}\'\ncookiekey = \'{cookiekey}\'\nexpiry = \'{cookieexpiry}\'\n")
                 file.close()
 
+                app.logger.warning(
+                    f"Info - The PSM registration was completed by:{session['username']}")
+
                 return redirect(url_for('adminhome'))
             else:
                 msg = "The PSM Registation failed"
@@ -656,6 +708,7 @@ def psmsetup():
                 return render_template('psmsetup.html', msg=msg, form=form)
         return render_template('psmsetup.html', form=form)
     return redirect(url_for('adminlogin'))
+
 
 @app.route("/targetsetup/", methods=['GET', 'POST'])
 def targetsetup():
@@ -676,7 +729,7 @@ def targetsetup():
             cur.close()
             return render_template('targetsetup.html', results=results)
 
-        #return render_template('manageusers.html')
+        # return render_template('manageusers.html')
 
     return redirect(url_for('adminlogin'))
 
@@ -700,10 +753,9 @@ def workloadsetup():
             cur.close()
             return render_template('workloadsetup.html', results=results)
 
-        #return render_template('manageusers.html')
+        # return render_template('manageusers.html')
 
     return redirect(url_for('adminlogin'))
-
 
 
 @app.route("/deletetaptarget/<string:id>/", methods=['GET', 'POST'])
@@ -718,7 +770,7 @@ def deletetaptarget(id):
         form.taptype.data = results[2]
         form.tapdest.data = results[3]
 
-        #print(results)
+        # print(results)
 
         if request.method == 'POST' and form.validate():
             #            username = request.form['username']
@@ -728,6 +780,8 @@ def deletetaptarget(id):
             ## commit and close ##
             conn.commit()
             cur.close()
+            app.logger.warning(
+                f"Info - The Tap Destiniation: {results[1]} was Deleted by {session['username']}")
 
             flash('Tap Destination Deleted', 'success')
             return redirect(url_for('targetsetup'))
@@ -735,6 +789,7 @@ def deletetaptarget(id):
         return render_template('deletetaptarget.html', form=form)
 
     return redirect(url_for('adminlogin'))
+
 
 @app.route("/deleteworkloadtarget/<string:id>/", methods=['GET', 'POST'])
 def deleteworkloadtarget(id):
@@ -747,7 +802,7 @@ def deleteworkloadtarget(id):
         form.workloadname.data = results[1]
         form.workloaddesc.data = results[2]
 
-        #print(results)
+        # print(results)
 
         if request.method == 'POST' and form.validate():
             cur.execute(" Delete from `Workloads` where UID = %s", [id])
@@ -755,6 +810,8 @@ def deleteworkloadtarget(id):
             ## commit and close ##
             conn.commit()
             cur.close()
+            app.logger.warning(
+                f"Info - The Workload Filter : {results[1]} was deleted by {session['username']}")
 
             flash('Workload Destination Deleted', 'success')
             return redirect(url_for('workloadsetup'))
@@ -764,12 +821,13 @@ def deleteworkloadtarget(id):
     return redirect(url_for('adminlogin'))
 
 
-
 @app.route("/viewtaptarget/<string:id>/", methods=['GET', 'POST'])
 def viewtaptarget(id):
     if 'loggedin' in session and session['admin'] == True:
         cur = conn.cursor()
-        result = cur.execute(" SELECT uid, name, type, inet_NTOA(IPaddr) as dest,inet_NTOA(Gateway) as gate , Description, StripVlan, PacketSize   FROM `Taps` where UID = %s;", [id])
+        result = cur.execute(
+            " SELECT uid, name, type, inet_NTOA(IPaddr) as dest,inet_NTOA(Gateway) as gate , Description, StripVlan, PacketSize   FROM `Taps` where UID = %s;",
+            [id])
         results = cur.fetchone()
         form = ViewTapTargetForm(request.form)
 
@@ -782,7 +840,6 @@ def viewtaptarget(id):
             form.tapstrip.data = results[6]
             form.tappacket.data = str(results[7])
 
-
         if request.method == 'POST' and form.validate():
             tapname = form.tapname.data
             taptype = form.taptype.data
@@ -791,7 +848,7 @@ def viewtaptarget(id):
             tapdesc = form.tapdesc.data
             tapstrip = form.tapstrip.data
             tappacket = form.tappacket.data
-            #print(tapname, taptype, tapip,tapgateway,tapdesc,tapstrip,tappacket)
+            # print(tapname, taptype, tapip,tapgateway,tapdesc,tapstrip,tappacket)
 
             ## cursor ##
             cur = conn.cursor()
@@ -803,11 +860,13 @@ def viewtaptarget(id):
                 "StripVlan= %s,"
                 "PacketSize = %s "
                 "where Name = %s and UID = %s ",
-                (taptype, tapip, tapgateway, tapdesc, tapstrip, tappacket , tapname, [id]))
+                (taptype, tapip, tapgateway, tapdesc, tapstrip, tappacket, tapname, [id]))
 
             ## commit and close ##
             conn.commit()
             cur.close()
+            app.logger.warning(
+                f"Info - The Tap Destiniation: {tapname} was Edited by {session['username']}")
 
             flash('Tap Destination Edited', 'success')
             return redirect(url_for('targetsetup'))
@@ -815,11 +874,14 @@ def viewtaptarget(id):
         return render_template('viewtaptarget.html', form=form)
     return redirect(url_for('adminlogin'))
 
+
 @app.route("/viewworkloadtarget/<string:id>/", methods=['GET', 'POST'])
 def viewworkloadtarget(id):
     if 'loggedin' in session and session['admin'] == True:
         cur = conn.cursor()
-        cur.execute(" SELECT UID, Name, Description , Source1, Destin1, Prot1, Source2, Destin2, Prot2 FROM `Workloads` where UID = %s;", [id])
+        cur.execute(
+            " SELECT UID, Name, Description , Source1, Destin1, Prot1, Source2, Destin2, Prot2 FROM `Workloads` where UID = %s;",
+            [id])
         results = cur.fetchone()
         form = ViewWorkloadTargetForm(request.form)
 
@@ -833,7 +895,6 @@ def viewworkloadtarget(id):
             form.workdest2.data = results[7]
             form.workprot2.data = results[8]
 
-
         if request.method == 'POST' and form.validate():
             workloadname = form.workloadname.data
             workloaddesc = form.workloaddesc.data
@@ -843,7 +904,6 @@ def viewworkloadtarget(id):
             worksource2 = form.worksource2.data
             workdest2 = form.workdest2.data
             workprot2 = form.workprot2.data
-
 
             ## cursor ##
             cur = conn.cursor()
@@ -856,11 +916,15 @@ def viewworkloadtarget(id):
                 "Destin2 = NULLIF(%s,''), "
                 "Prot2 = NULLIF(%s,'') "
                 "where Name = %s and UID = %s ",
-                (workloaddesc, worksource1, workdest1, workprot1, worksource2, workdest2, workprot2,  workloadname, [id]))
+                (
+                workloaddesc, worksource1, workdest1, workprot1, worksource2, workdest2, workprot2, workloadname, [id]))
 
             ## commit and close ##
             conn.commit()
             cur.close()
+
+            app.logger.warning(
+                f"Info - The Workload Filter: {workloadname} was Edited by {session['username']}")
 
             flash('Workload Destination Edited', 'success')
             return redirect(url_for('workloadsetup'))
@@ -882,24 +946,27 @@ def addtaptarget():
             tapstrip = form.tapstrip.data
             tappacket = form.tappacket.data
 
-            #print(tapname, taptype, tapip,tapgateway,tapdesc,tapstrip,tappacket)
+            # print(tapname, taptype, tapip,tapgateway,tapdesc,tapstrip,tappacket)
             ## cursor ##
             cur = conn.cursor()
             cur.execute(
                 "INSERT INTO `Taps` (Name, Type, IPaddr, Gateway, Description, StripVlan, PacketSize)"
                 "VALUES ( %s,%s,inet_aton(%s),inet_aton(%s),%s,%s,%s ) ",
-                (tapname, taptype, tapip,tapgateway,tapdesc,tapstrip,tappacket))
+                (tapname, taptype, tapip, tapgateway, tapdesc, tapstrip, tappacket))
 
             ## commit and close ##
             conn.commit()
             cur.close()
+            app.logger.warning(
+                f"Info - The Tap Destiniation: {tapname} was created by {session['username']}")
+
 
             flash('Tap Destination Created', 'success')
             return redirect(url_for('targetsetup'))
 
-
         return render_template('addtaptarget.html', form=form)
     return redirect(url_for('adminlogin'))
+
 
 @app.route("/addworkloadtarget", methods=['GET', 'POST'])
 def addworkloadtarget():
@@ -915,21 +982,23 @@ def addworkloadtarget():
             workdest2 = form.workdest2.data
             workprot2 = form.workprot2.data
 
-            #print((workloadname, worksource1, worksource2,workdest1,workdest2,workprot1,workprot2,workloaddesc))
+            # print((workloadname, worksource1, worksource2,workdest1,workdest2,workprot1,workprot2,workloaddesc))
             ## cursor ##
             cur = conn.cursor()
             cur.execute(
                 " INSERT INTO `Workloads` (Name, Source1, Source2, Destin1, Destin2, Prot1, Prot2, Description)"
                 "VALUES ( %s,%s,%s,%s,NULLIF(%s,''),NULLIF(%s,''),NULLIF(%s,''),%s ) ",
-                (workloadname, worksource1, worksource2,workdest1,workdest2,workprot1,workprot2,workloaddesc))
+                (workloadname, worksource1, worksource2, workdest1, workdest2, workprot1, workprot2, workloaddesc))
 
             ## commit and close ##
             conn.commit()
             cur.close()
+            app.logger.warning(
+                f"Info - The Workload Filter: {workloadname} was created by {session['username']}")
+
 
             flash('Tap Destination Created', 'success')
             return redirect(url_for('workloadsetup'))
-
 
         return render_template('addworkloadtarget.html', form=form)
     return redirect(url_for('adminlogin'))
@@ -938,14 +1007,16 @@ def addworkloadtarget():
 @app.route("/assigntaps/<string:id>/", methods=['GET', 'POST'])
 def assigntaps(id):
     """
-    The section is for the assigning of taps to a specific user. 
+    The section is for the assigning of taps to a specific user.
     Select 1 retrieves the TAPS not already assigned to the user.
     Select 2 retrieves the username of the user the tap is being assigned too for display purpose
     """
     if 'loggedin' in session and session['admin'] == True:
         cur = conn.cursor()
         userid = [id]
-        result = cur.execute("select uid, name, type, inet_NTOA(IPaddr) as dest  from Taps where UID in (select TapUID from TapOwner where OwnerUID=%s)",  [id])
+        result = cur.execute(
+            "select uid, name, type, inet_NTOA(IPaddr) as dest  from Taps where UID in (select TapUID from TapOwner where OwnerUID=%s)",
+            [id])
         results = cur.fetchall()
         cur.execute("select username from UserAccounts where id=%s", [id])
         results2 = cur.fetchone()
@@ -954,36 +1025,37 @@ def assigntaps(id):
             cur.close()
             return render_template('assigntaps.html', results=results, userid=userid, results2=results2)
         else:
-            flash ('No Taps Assigned', 'error')
+            flash('No Taps Assigned', 'error')
             cur.close()
             return render_template('assigntaps.html', results=results, userid=userid, results2=results2)
 
-        #return render_template('manageusers.html')
+        # return render_template('manageusers.html')
 
     return redirect(url_for('adminlogin'))
 
 
 @app.route("/addassignedtap/", methods=['GET', 'POST'])
 def addassignedtap():
-    # TODO: This is where i am upto. 
+    # TODO: This is where i am upto.
     # TODO: need to look at the format and work out the register process. - http://192.168.102.6:5010/addmember/?GUID=1&DHCPUID=409
     userid = request.args.get('userid', None)
-    #print(userid)
+    # print(userid)
     if 'loggedin' in session and session['admin'] == True:
         ## cursor ##
         cur = conn.cursor()
-        result = cur.execute(" select uid, Name, Type, INET_NTOA(IPaddr) from Taps where UID not in (select tapuid from TapOwner where OwnerUID=%s);", userid)
+        result = cur.execute(
+            " select uid, Name, Type, INET_NTOA(IPaddr) from Taps where UID not in (select tapuid from TapOwner where OwnerUID=%s);",
+            userid)
         results = cur.fetchall()
         cur.execute("select id, username from UserAccounts where id=%s", userid)
         results2 = cur.fetchone()
         if result > 0:
             cur.close()
-            return render_template('addassignedtap.html', results=results, userid=userid , results2=results2)
+            return render_template('addassignedtap.html', results=results, userid=userid, results2=results2)
         else:
-            flash( 'No Taps Left', 'success')
+            flash('No Taps Left', 'success')
             cur.close()
-            return render_template('addassignedtap.html', results=results, userid=userid , results2=results2)
-
+            return render_template('addassignedtap.html', results=results, userid=userid, results2=results2)
 
     return redirect(url_for('adminlogin'))
 
@@ -993,7 +1065,7 @@ def addassignedworkload():
     # TODO: This is where i am upto.
     # TODO: need to look at the format and work out the register process. - http://192.168.102.6:5010/addmember/?GUID=1&DHCPUID=409
     userid = request.args.get('userid', None)
-    #print(userid)
+    # print(userid)
     if 'loggedin' in session and session['admin'] == True:
         ## cursor ##
         cur = conn.cursor()
@@ -1005,14 +1077,13 @@ def addassignedworkload():
         results2 = cur.fetchone()
         if result > 0:
             cur.close()
-            return render_template('addassignedworkload.html', results=results, userid=userid , results2=results2)
+            return render_template('addassignedworkload.html', results=results, userid=userid, results2=results2)
         else:
             flash('No workloads Left', 'success')
             cur.close()
-            return render_template('addassignedworkload.html', results=results, userid=userid , results2=results2)
+            return render_template('addassignedworkload.html', results=results, userid=userid, results2=results2)
 
     return redirect(url_for('adminlogin'))
-
 
 
 @app.route("/addassignedtapcreate/", methods=['GET', 'POST'])
@@ -1023,11 +1094,21 @@ def addassignedtapcreate():
     if 'loggedin' in session and session['admin'] == True:
         flash('Tap Assigned', 'success')
         cur = conn.cursor()
-        state = ("insert into TapOwner (TapUID, OwnerUID) values(%s,%s);" %  (tapid,userid))
+        state = ("insert into TapOwner (TapUID, OwnerUID) values(%s,%s);" % (tapid, userid))
         cur.execute(state)
         cur.close()
         conn.commit()
-        return redirect(url_for('addassignedtap',userid=userid))
+        cur2 = conn.cursor()
+        cur2.execute("select uid, name from Taps where uid=%s;", tapid)
+        results1 = cur2.fetchone()
+        cur2.execute("select id, username from UserAccounts where ID=%s;", userid)
+        results2 = cur2.fetchone()
+        cur2.close()
+        app.logger.warning(
+            f'Info - The Tap Destiniation: {results1[1]} was added to assigned  User:  {results2[1]}')
+
+
+        return redirect(url_for('addassignedtap', userid=userid))
 
 
 @app.route("/addassignedworkloadcreate/", methods=['GET', 'POST'])
@@ -1039,12 +1120,20 @@ def addassignedworkloadcreate():
         flash('Workload Assigned', 'success')
         cur = conn.cursor()
         state = (
-                     "insert into WorkloadOwner (WorkloadUID, OwnerUID) values(%s,%s);" %  (workloadid,userid))
+                "insert into WorkloadOwner (WorkloadUID, OwnerUID) values(%s,%s);" % (workloadid, userid))
         cur.execute(state)
         cur.close()
         conn.commit()
-        return redirect(url_for('addassignedworkload',userid=userid))
+        cur2 = conn.cursor()
+        cur2.execute("select uid, name from Workloads where uid=%s;", workloadid)
+        results1 = cur2.fetchone()
+        cur2.execute("select id, username from UserAccounts where ID=%s;", userid)
+        results2 = cur2.fetchone()
+        cur2.close()
+        app.logger.warning(
+            f'Info - The Workload Filter: {results1[1]} was added to assigned  User:  {results2[1]}')
 
+        return redirect(url_for('addassignedworkload', userid=userid))
 
 
 @app.route("/deleteasignedtap/", methods=['GET', 'POST'])
@@ -1055,6 +1144,10 @@ def deleteasignedtap():
         cur = conn.cursor()
         cur.execute("select uid, name, type, inet_NTOA(IPaddr) as dest  from Taps where UID=%s;", tapid)
         results = cur.fetchone()
+        cur2 = conn.cursor()
+        cur2.execute("select id, username from UserAccounts where ID=%s;", userid)
+        results2 = cur2.fetchone()
+        cur2.close()
         form = DeleteAssignedTapForm(request.form)
         form.tapname.data = results[1]
         form.destination.data = results[3]
@@ -1063,6 +1156,8 @@ def deleteasignedtap():
             cur.execute("delete from TapOwner where TapUID = %s and OwnerUID =%s;", (tapid, userid))
             conn.commit()
             cur.close()
+            app.logger.warning(
+                f'Info - The Tap Destiniation: {results[1]} was removed from previous assigned  User:  {results2[1]}')
             flash('Taps removed', 'success')
             return redirect(url_for('manageusers'))
         cur.close()
@@ -1079,6 +1174,10 @@ def deleteasignedworkload():
         cur = conn.cursor()
         cur.execute("select uid, name as dest  from Workloads where UID=%s;", workloadid)
         results = cur.fetchone()
+        cur2 = conn.cursor()
+        cur2.execute("select id, username from UserAccounts where ID=%s;", userid)
+        results2 = cur2.fetchone()
+        cur2.close()
         form = DeleteAssignedWorkloadForm(request.form)
         form.workloadname.data = results[1]
 
@@ -1086,6 +1185,8 @@ def deleteasignedworkload():
             cur.execute("delete from WorkloadOwner where WorkloadUID = %s and OwnerUID =%s;", (workloadid, userid))
             conn.commit()
             cur.close()
+            app.logger.warning(
+                f'Info - The Workload Filter: {results[1]} was removed from previous assigned  User:  {results2[1]}')
             flash('Workload removed', 'success')
             return redirect(url_for('manageusers'))
         cur.close()
@@ -1099,7 +1200,9 @@ def assignworkload(id):
     if 'loggedin' in session and session['admin'] == True:
         cur = conn.cursor()
         userid = [id]
-        result = cur.execute("select uid, name as workload from Workloads where UID in (select WorkloadUID from WorkloadOwner where OwnerUID=%s)",  [id])
+        result = cur.execute(
+            "select uid, name as workload from Workloads where UID in (select WorkloadUID from WorkloadOwner where OwnerUID=%s)",
+            [id])
         results = cur.fetchall()
         cur.execute("select username from UserAccounts where id=%s", [id])
         results2 = cur.fetchone()
@@ -1108,18 +1211,17 @@ def assignworkload(id):
             cur.close()
             return render_template('assignworkload.html', results=results, userid=userid, results2=results2)
         else:
-            flash ( 'No Workloads Assigned', 'error')
+            flash('No Workloads Assigned', 'error')
             cur.close()
             return render_template('assignworkload.html', results=results, userid=userid, results2=results2)
 
     return redirect(url_for('adminlogin'))
 
-    
-
 
 """
 ADMIN TAPS AND ACTIVE TAPS SECTION
 """
+
 
 @app.route("/adminactivetap")
 def adminactivetap():
@@ -1155,6 +1257,7 @@ def adminactivetap():
             return render_template('adminactivetap.html', msg=msg)
 
     return redirect(url_for('adminlogin'))
+
 
 @app.route("/adminenabletap")
 def adminenabletap():
@@ -1203,8 +1306,8 @@ def adminenabletap():
 
 @app.route("/adminenabletapcreate/", methods=['GET', 'POST'])
 def adminenabletapcreate():
-    TapDest = request.args.get('TapDest', None)
-    WorkDest = request.args.get('WorkDest', None)
+    TapDestId = request.args.get('TapDest', None)
+    WorkDestId = request.args.get('WorkDest', None)
     Duration = (int)(request.args.get('Duration', None))
     if 'loggedin' in session and session['admin'] == True:
         ipman = getVar('ipman')[1:-1]
@@ -1217,9 +1320,9 @@ def adminenabletapcreate():
         cur1.execute(
             " select Name, Type, INET_NTOA(IPaddr), INET_NTOA(Gateway), StripVlan, PacketSize from "
             "Taps where UID =%s;",
-            TapDest)
+            TapDestId)
         resultstap = cur1.fetchone()
-        TapName= resultstap[0]
+        TapName = resultstap[0]
         TapType = resultstap[1]
         TapDest = resultstap[2]
         TapGateway = resultstap[3]
@@ -1230,7 +1333,7 @@ def adminenabletapcreate():
         cur2 = conn.cursor()
         cur2.execute(
             " select Name, Source1,Destin1,Prot1, Source2,Destin2,Prot2 from Workloads where uid=%s;",
-                     WorkDest)
+            WorkDestId)
         resultswork = cur2.fetchone()
         WorkName = resultswork[0]
         WorkSoure1 = resultswork[1]
@@ -1241,28 +1344,28 @@ def adminenabletapcreate():
         WorkPro2 = resultswork[6]
         cur2.close()
 
-        MirrorName = (TapName +'-'+ WorkName)
+        MirrorName = (TapName + '-' + WorkName)
 
         cur3 = conn.cursor()
         state3 = (
-                "insert into ActiveTaps (TapName, TapExpiry)"
-                "Values ('%s',(date_add(now(),INTERVAL %s minute)));") % (
+                     "insert into ActiveTaps (TapName, TapExpiry)"
+                     "Values ('%s',(date_add(now(),INTERVAL %s minute)));") % (
                      MirrorName, Duration)
         cur3.execute(state3)
         conn.commit()
         cur3.close()
         cur4 = conn.cursor()
-        state4=("select uid , TapExpiry from ActiveTaps where TapName='%s';") % (MirrorName)
+        state4 = ("select uid , TapExpiry from ActiveTaps where TapName='%s';") % (MirrorName)
         cur4.execute(state4)
         results4 = cur4.fetchone()
-        TapId=int(results4[0])
+        TapId = int(results4[0])
         cur4.close()
 
         url = ('https://%s/configs/monitoring/v1/tenant/default/MirrorSession' % ipman)
         headers = ({'Content-Type': 'application/json', 'cookie': cookiekey})
 
         # TODO: Need to work on the build array logic.
-        #print(TapStrip)
+        # print(TapStrip)
         header = ("""
                             "meta":{"name":"%s"}
                             """ % (MirrorName))
@@ -1292,7 +1395,7 @@ def adminenabletapcreate():
                             ]
                         """ % (TapPacket, TapType, TapDest, TapGateway))
         if WorkSoure2 is None:
-            print("single")
+            # print("single")
             rules = ("""
                         "match-rules":[{
                             "source":{
@@ -1311,9 +1414,9 @@ def adminenabletapcreate():
                                 ]
                             }
                         }]
-                        """ %(WorkSoure1,WorkDest1,WorkPro1))
+                        """ % (WorkSoure1, WorkDest1, WorkPro1))
         else:
-            print("double")
+            # print("double")
             rules = ("""
                         "match-rules":[{
                             "source":{
@@ -1350,7 +1453,7 @@ def adminenabletapcreate():
                             }
                         }
                         ]
-                        """ % (WorkSoure1,WorkDest1,WorkPro1,WorkSoure2,WorkDest2,WorkPro2 ))
+                        """ % (WorkSoure1, WorkDest1, WorkPro1, WorkSoure2, WorkDest2, WorkPro2))
 
         spanid = ("""
             		"packet-filters": [
@@ -1360,8 +1463,8 @@ def adminenabletapcreate():
                     }
                 """ % (TapId))
         body = ("""{%s,%s,%s,%s}
-                    """ % (header,collector,rules,spanid))
-        #print(body)
+                    """ % (header, collector, rules, spanid))
+        # print(body)
 
         req = requests.post(url, headers=headers, data=body, verify=False)
         """"
@@ -1373,16 +1476,27 @@ def adminenabletapcreate():
             cur5 = conn.cursor()
             state5 = (
                          "update ActiveTaps set TapId = %s ,"
-                        "TapExpiry = (date_add(now(),INTERVAL %s minute))"
-                        "where TapName ='%s';") % (TapId,Duration, MirrorName)
+                         "TapExpiry = (date_add(now(),INTERVAL %s minute))"
+                         "where TapName ='%s';") % (TapId, Duration, MirrorName)
             cur5.execute(state5)
+            userid = session['id']
+            username = session['username']
+            cur6 = conn.cursor()
+            state6 = (
+                         "insert into TapsAudit (AdminId, UserName, TapUID, TapName, WorkloadUID,"
+                         " WorkloadName, TapCreated, TapActiveID) values(%s, '%s',"
+                         "%s,'%s',%s,'%s',now(),%s);") % (
+                     userid, username, WorkDestId, TapName, WorkDestId, WorkName, TapId)
+            cur6.execute(state6)
+            app.logger.warning(f'Info - The TAP Destination: {TapName} with Filter: {WorkName} was Added to the system by Admin: {username}')
+
             conn.commit()
             cur5.close()
-
+            cur6.close()
         elif req.status_code != 200:
             flash('Tap failed to be added', 'error')
             cur5 = conn.cursor()
-            state5 = ("delete from ActiveTaps  where TapName = '%s' and TapId is null;" ) % (MirrorName)
+            state5 = ("delete from ActiveTaps  where TapName = '%s' and TapId is null;") % (MirrorName)
             cur5.execute(state5)
             conn.commit()
             cur5.close()
@@ -1418,6 +1532,15 @@ def admindeletetap(id):
         if request.method == 'POST' and form.validate():
             cur = conn.cursor()
             result = cur.execute(" select uid, TapName , TapExpiry from ActiveTaps where uid = %s;", [id])
+            results = cur.fetchone()
+            MirrorName = results[1]
+            y = MirrorName.index("-")
+            # print(y)
+            TapDestName = (MirrorName[0:y])
+            WorkloadDestName = (MirrorName[y + 1:])
+            # print(TapDestName)
+            # print(WorkloadDestName)
+
             cur.close()
             if result > 0:
                 url = ('https://%s/configs/monitoring/v1/tenant/default/MirrorSession/%s' % (ipman, tapname))
@@ -1434,6 +1557,22 @@ def admindeletetap(id):
                     ## commit and close ##
                     conn.commit()
                     cur2.close()
+
+                    username = session['username']
+                    TapActiveID = id
+                    # print(TapActiveID)
+
+                    cur3 = conn.cursor()
+                    state3 = (
+                                 "update TapsAudit set TapDeleted = now() ,"
+                                 "DeletedBy = '%s' where TapActiveID = %s and TapName = '%s' and WorkloadName = '%s'"
+                                 " and TapDeleted is null;") % (username, TapActiveID, TapDestName, WorkloadDestName)
+                    cur3.execute(state3)
+                    conn.commit()
+                    cur3.close()
+                    app.logger.warning(
+                        f'Info - The TAP Destination: {TapDestName} with Filter: {WorkloadDestName} was Deleted from the system by Admin: {username}')
+
                     flash('Tap deleted', 'success')
                     return redirect(url_for('adminactivetap'))
                 return redirect(url_for('adminactivetap'))
@@ -1445,10 +1584,49 @@ def admindeletetap(id):
     return redirect(url_for('adminlogin'))
 
 
+@app.route("/admintapaudit")
+def admintapaudit():
+    if 'loggedin' in session and session['admin'] == True:
+        ipman = getVar('ipman')[1:-1]
+        cookiekey = getVar('cookiekey')[1:-1]
+        if len(cookiekey) == 0:
+            return redirect(url_for('psmsetup'))
+
+        url = ('https://%s/configs/monitoring/v1/tenant/default/MirrorSession' % (ipman))
+        headers = ({'Content-Type': 'application/json', 'cookie': cookiekey})
+        try:
+            req = requests.get(url, headers=headers, verify=False)
+        except requests.ConnectionError:
+            msg = 'No PSM accessible'
+            flash(msg, 'warning')
+            return redirect(url_for('adminhome'))
+        # handle ConnectionError the exception
+
+        ''' print the number of taps'''
+        flash(f"The number of taps configure on PSM = {(((req.json()).get('list-meta')).get('total-count'))}\n", 'info')
+
+        cur = conn.cursor()
+
+        result = cur.execute(
+            "select uid, TransTime, UserId, AdminId, UserName, TapUID, TapName, WorkloadUID, WorkloadName, TapCreated,"
+            " TapDeleted, DeletedBy, TapActiveId from TapsAudit order by TransTime desc;")
+        results = cur.fetchall()
+        if result > 0:
+            cur.close()
+            return render_template('admintapaudit.html', results=results)
+        else:
+            msg = 'No Active Taps registered'
+            flash(msg, 'warning')
+            cur.close()
+            return render_template('admintapaudit.html', msg=msg)
+
+    return redirect(url_for('adminlogin'))
+
 
 """
 USERS TAPS AND ACTIVE TAPS SECTION
 """
+
 
 @app.route("/activetap")
 def activetap():
@@ -1467,7 +1645,6 @@ def activetap():
             flash(msg, 'warning')
             return redirect(url_for('home'))
 
-
         ''' print the number of taps'''
         flash(f"The number of taps configure on PSM = {(((req.json()).get('list-meta')).get('total-count'))}\n", 'info')
 
@@ -1479,9 +1656,10 @@ def activetap():
             # print("MetaData: {}\n".format(item['meta']))
             print(f"Tapname: {tapname}\n")
         '''
-        #print(session['id'])
+        # print(session['id'])
         cur = conn.cursor()
-        result = cur.execute("select uid, TapName , TapExpiry  , TapId  from ActiveTaps where TapOwner = %s;", [session['id']])
+        result = cur.execute("select uid, TapName , TapExpiry  , TapId  from ActiveTaps where TapOwner = %s;",
+                             [session['id']])
         results = cur.fetchall()
         if result > 0:
             cur.close()
@@ -1491,7 +1669,6 @@ def activetap():
             flash(msg, 'warning')
             cur.close()
             return render_template('activetap.html', msg=msg)
-
 
     return redirect(url_for('home'))
 
@@ -1517,14 +1694,14 @@ def enabletap():
 
         tapcount = (((req.json()).get('list-meta')).get('total-count'))
         if tapcount is None:
-            tapcount=0
+            tapcount = 0
 
         '''
         print(req.status_code)
         print(req.headers)
         print(req.text)        
         print(f"number of taps ={(((req.json()).get('list-meta')).get('total-count'))}\n")
-             
+
         print(tapcount)
         data = req.json()
         print(data)
@@ -1561,14 +1738,14 @@ def enabletap():
 
 @app.route("/enabletapcreate/", methods=['GET', 'POST'])
 def enabletapcreate():
-    TapDest = request.args.get('TapDest', None)
-    WorkDest = request.args.get('WorkDest', None)
+    TapDestId = request.args.get('TapDest', None)
+    WorkDestId = request.args.get('WorkDest', None)
     Duration = request.args.get('Duration', None)
-    #print(TapDest)
-    #print(WorkDest)
-    #print(Duration)
+    Tapowner = session['id']
+    # print(TapDest)
+    # print(WorkDest)
+    # print(Duration)
     if 'loggedin' in session:
-        Tapowner = session['id']
         ipman = getVar('ipman')[1:-1]
         cookiekey = getVar('cookiekey')[1:-1]
         if len(cookiekey) == 0:
@@ -1579,9 +1756,9 @@ def enabletapcreate():
         cur1.execute(
             " select Name, Type, INET_NTOA(IPaddr), INET_NTOA(Gateway), StripVlan, PacketSize from "
             "Taps where UID =%s;",
-            TapDest)
+            TapDestId)
         resultstap = cur1.fetchone()
-        TapName= resultstap[0]
+        TapName = resultstap[0]
         TapType = resultstap[1]
         TapDest = resultstap[2]
         TapGateway = resultstap[3]
@@ -1592,7 +1769,7 @@ def enabletapcreate():
         cur2 = conn.cursor()
         cur2.execute(
             " select Name, Source1,Destin1,Prot1, Source2,Destin2,Prot2 from Workloads where uid=%s;",
-                     WorkDest)
+            WorkDestId)
         resultswork = cur2.fetchone()
         WorkName = resultswork[0]
         WorkSoure1 = resultswork[1]
@@ -1603,28 +1780,28 @@ def enabletapcreate():
         WorkPro2 = resultswork[6]
         cur2.close()
 
-        MirrorName = (TapName +'-'+ WorkName)
+        MirrorName = (TapName + '-' + WorkName)
 
         cur3 = conn.cursor()
         state3 = (
-                "insert into ActiveTaps (TapName, TapExpiry, TapOwner)"
-                "Values ('%s',(date_add(now(),INTERVAL %s minute)), %s);") % (
+                     "insert into ActiveTaps (TapName, TapExpiry, TapOwner)"
+                     "Values ('%s',(date_add(now(),INTERVAL %s minute)), %s);") % (
                      MirrorName, Duration, Tapowner)
         cur3.execute(state3)
         conn.commit()
         cur3.close()
         cur4 = conn.cursor()
-        state4=("select uid , TapExpiry from ActiveTaps where TapName='%s';") % (MirrorName)
+        state4 = ("select uid , TapExpiry from ActiveTaps where TapName='%s';") % (MirrorName)
         cur4.execute(state4)
         results4 = cur4.fetchone()
-        TapId=int(results4[0])
+        TapId = int(results4[0])
         cur4.close()
 
         url = ('https://%s/configs/monitoring/v1/tenant/default/MirrorSession' % ipman)
         headers = ({'Content-Type': 'application/json', 'cookie': cookiekey})
 
         # TODO: Need to work on the build array logic.
-        #print(TapStrip)
+        # print(TapStrip)
         header = ("""
                             "meta":{"name":"%s"}
                             """ % (MirrorName))
@@ -1654,7 +1831,7 @@ def enabletapcreate():
                             ]
                         """ % (TapPacket, TapType, TapDest, TapGateway))
         if WorkSoure2 is None:
-            #print("single")
+            # print("single")
             rules = ("""
                         "match-rules":[{
                             "source":{
@@ -1673,9 +1850,9 @@ def enabletapcreate():
                                 ]
                             }
                         }]
-                        """ %(WorkSoure1,WorkDest1,WorkPro1))
+                        """ % (WorkSoure1, WorkDest1, WorkPro1))
         else:
-            #print("double")
+            # print("double")
             rules = ("""
                         "match-rules":[{
                             "source":{
@@ -1712,7 +1889,7 @@ def enabletapcreate():
                             }
                         }
                         ]
-                        """ % (WorkSoure1,WorkDest1,WorkPro1,WorkSoure2,WorkDest2,WorkPro2 ))
+                        """ % (WorkSoure1, WorkDest1, WorkPro1, WorkSoure2, WorkDest2, WorkPro2))
 
         spanid = ("""
             		"packet-filters": [
@@ -1722,8 +1899,8 @@ def enabletapcreate():
                     }
                 """ % (TapId))
         body = ("""{%s,%s,%s,%s}
-                    """ % (header,collector,rules,spanid))
-        #print(body)
+                    """ % (header, collector, rules, spanid))
+        # print(body)
 
         req = requests.post(url, headers=headers, data=body, verify=False)
         """"
@@ -1736,15 +1913,28 @@ def enabletapcreate():
             state5 = (
                          "update ActiveTaps set TapId = %s ,"
                          "TapExpiry = (date_add(now(),INTERVAL %s minute))"
-                        "where TapName ='%s';") % (TapId,Duration, MirrorName)
+                         "where TapName ='%s';") % (TapId, Duration, MirrorName)
             cur5.execute(state5)
+            userid = session['id']
+            username = session['username']
+            cur6 = conn.cursor()
+            state6 = (
+                         "insert into TapsAudit (UserId, UserName, TapUID, TapName, WorkloadUID,"
+                         " WorkloadName, TapCreated, TapActiveID) values(%s, '%s',"
+                         "%s,'%s',%s,'%s',now(),%s);") % (
+                     userid, username, WorkDestId, TapName, WorkDestId, WorkName, TapId)
+            cur6.execute(state6)
+            app.logger.warning(
+                f'Info - The TAP Destination: {TapName} with Filter: {WorkName} was Added to the system by User: {username}')
+
             conn.commit()
             cur5.close()
+            cur6.close()
 
         elif req.status_code != 200:
             flash('Tap failed to be added', 'error')
             cur5 = conn.cursor()
-            state5 = ("delete from ActiveTaps  where TapName = '%s' and TapId is null;" ) % (MirrorName)
+            state5 = ("delete from ActiveTaps  where TapName = '%s' and TapId is null;") % (MirrorName)
             cur5.execute(state5)
             conn.commit()
             cur5.close()
@@ -1755,15 +1945,13 @@ def enabletapcreate():
     return redirect(url_for('home'))
 
 
-
-
 @app.route("/deletetap/<string:id>/", methods=['GET', 'POST'])
 def deletetap(id):
     if 'loggedin' in session:
         ipman = getVar('ipman')[1:-1]
         cookiekey = getVar('cookiekey')[1:-1]
         if len(cookiekey) == 0:
-            #print('empty String')
+            # print('empty String')
             return redirect(url_for('psmsetup'))
 
         cur = conn.cursor()
@@ -1779,10 +1967,15 @@ def deletetap(id):
             flash('Tap already deleted', 'success')
             return redirect(url_for('activetap'))
 
-
         if request.method == 'POST' and form.validate():
             cur = conn.cursor()
             result = cur.execute(" select uid, TapName , TapExpiry from ActiveTaps where uid = %s;", [id])
+            results = cur.fetchone()
+            MirrorName = results[1]
+            y = MirrorName.index("-")
+            # print(y)
+            TapDestName = (MirrorName[0:y])
+            WorkloadDestName = (MirrorName[y + 1:])
             cur.close()
             if result > 0:
                 url = ('https://%s/configs/monitoring/v1/tenant/default/MirrorSession/%s' % (ipman, tapname))
@@ -1799,6 +1992,22 @@ def deletetap(id):
                     ## commit and close ##
                     conn.commit()
                     cur2.close()
+
+                    username = session['username']
+                    TapActiveID = id
+                    # print(TapActiveID)
+
+                    cur3 = conn.cursor()
+                    state3 = (
+                                 "update TapsAudit set TapDeleted = now() ,"
+                                 "DeletedBy = '%s' where TapActiveID = %s and TapName = '%s' and WorkloadName = '%s'"
+                                 " and TapDeleted is null;") % (username, TapActiveID, TapDestName, WorkloadDestName)
+                    cur3.execute(state3)
+                    conn.commit()
+                    cur3.close()
+                    app.logger.warning(
+                        f'Info - The TAP Destination: {TapDestName} with Filter: {WorkloadDestName} was Deleted from the system by User: {username}')
+
                     flash('Tap deleted', 'success')
                     return redirect(url_for('activetap'))
                 return redirect(url_for('activetap'))
@@ -1817,20 +2026,21 @@ HOME PAGE
     If no PSM Setup it will redirect to the PSM setup, if a user this will cause redirect to login.
 """
 
+
 @app.route("/")
 def index():
     # Check if user is loggedin
     if 'loggedin' in session and session['admin'] == True:
         cookiekey = getVar('cookiekey')[1:-1]
         if len(cookiekey) == 0:
-            #print('empty String')
+            # print('empty String')
             return redirect(url_for('psmsetup'))
 
         return render_template('adminindex.html')
     elif 'loggedin' in session and session['admin'] == False:
         cookiekey = getVar('cookiekey')[1:-1]
         if len(cookiekey) == 0:
-            #print('empty String')
+            # print('empty String')
             return redirect(url_for('psmsetup'))
 
         return render_template('index.html')
@@ -1845,20 +2055,21 @@ def home():
     if 'loggedin' in session and session['admin'] == True:
         cookiekey = getVar('cookiekey')[1:-1]
         if len(cookiekey) == 0:
-            #print('empty String')
+            # print('empty String')
             return redirect(url_for('psmsetup'))
 
         return render_template('adminindex.html')
     elif 'loggedin' in session and session['admin'] == False:
         cookiekey = getVar('cookiekey')[1:-1]
         if len(cookiekey) == 0:
-            #print('empty String')
+            # print('empty String')
             return redirect(url_for('psmsetup'))
 
         return render_template('index.html')
 
     # User is not loggedin redirect to login page
     return redirect(url_for('login'))
+
 
 @app.route("/adminhome")
 def adminhome():
@@ -1866,14 +2077,14 @@ def adminhome():
     if 'loggedin' in session and session['admin'] == True:
         cookiekey = getVar('cookiekey')[1:-1]
         if len(cookiekey) == 0:
-            #print('empty String')
+            # print('empty String')
             return redirect(url_for('psmsetup'))
 
         return render_template('adminindex.html')
     elif 'loggedin' in session and session['admin'] == False:
         cookiekey = getVar('cookiekey')[1:-1]
         if len(cookiekey) == 0:
-            #print('empty String')
+            # print('empty String')
             return redirect(url_for('psmsetup'))
 
         return render_template('index.html')
@@ -1881,33 +2092,63 @@ def adminhome():
     # User is not loggedin redirect to login page
     return redirect(url_for('login'))
 
+
 """
 BACKGROUND SECTION 
 
-"""	
+"""
+
 
 def getVar(name):
     ' Global variable retrival from psm.cfg'
     c = ConfigParser()
     c.read('psm.cfg')
-    return c.get('global',name)
+    return c.get('global', name)
 
 
 def initBackgroundProcs():
     ''' Intial process for threading and background jobs. '''
+    """ 
+    First check to see if a upgrade and if so rebuild the psm.cfg.
+    Also if upgrade, reconnect to the SQL DB.
+    Seen a issue where for the first time post upgrade the DB connection fails for the first 3 queries.
+    Is a one off process. (Minor issue). 
+    """
+    # time.sleep(20)
+    app.logger.warning("Info - Starting Background Tasks.")
+
+    try:
+        file = open("psm.cfg")
+        file.close()
+    except IOError:
+        app.logger.info("After a upgrade a new psm.cfg need to be built and a few DB Connections might fail to restarts.")
+        # time.sleep(10)
+        file = open("psm.cfg", "w")
+        file.write(
+            f"[global]\nipman = \nadminuser = \nadminpwd = \ncookiekey = \nexpiry = \'Mon, 31 Dec 2029 00:00:01 GMT\'\n")
+        file.close()
+
+    """
+    Start the background thread jobs. 
+    thread 3 to be added to clean down audit log
+    """
     thread1 = threading.Thread(target=refreshkey)
     thread2 = threading.Thread(target=expiryactivetaps)
+    thread3 = threading.Thread(target=cleanauditlog)
     thread1.start()
     thread2.start()
+    thread3.start()
+
 
 def refreshkey():
     ''' 	Background job to refresh the API token every few days. '''
-    while True :
+    while True:
         expiry = getVar('expiry')[1:-1]
         today = datetime.today()
         expirytest = (datetime.strptime(expiry, '%a, %d  %b %Y %H:%M:%S %Z')) + timedelta(days=-1)
 
         if (today > expirytest):
+
             ipman = getVar('ipman')[1:-1]
             adminuser = getVar('adminuser')[1:-1]
             adminpwd = getVar('adminpwd')[1:-1]
@@ -1923,7 +2164,7 @@ def refreshkey():
             if req.status_code == 200:
                 #			print(req.headers)
                 #			print(req.text)
-
+                app.logger.warning("Token Expired, and is now refreshed")
                 info = (req.headers)
                 #		info = (((req.json()).get('list-meta')).get('total-count'))
                 #		result = req.read()
@@ -1948,15 +2189,18 @@ def refreshkey():
                 file.write(
                     f"[global]\nipman = \'{ipman}\'\nadminuser = \'{adminuser}\'\nadminpwd = \'{adminpwd}\'\ncookiekey = \'{cookiekey}\'\nexpiry = \'{cookieexpiry}\'\n")
                 file.close()
-                
-                print("Key Updated")
+                #app.logger.warning("Token Expired, refreshed")
+
 
             else:
                 '''Sleep for 12 hours before re-test'''
+                app.logger.error("Token Expired, refreshed failed")
                 time.sleep(43200)
+
 
         else:
             time.sleep(43200)
+
 
 
 def expiryactivetaps():
@@ -1964,6 +2208,26 @@ def expiryactivetaps():
     while True:
         ipman = getVar('ipman')[1:-1]
         cookiekey = getVar('cookiekey')[1:-1]
+
+        global conn
+        try:
+            if (pymysql.connect(host=host, port=port, user=user, passwd=passwd, db=db)):
+                #app.logger.info("Background connection exists")
+                conn = pymysql.connect(host=host, port=port, user=user, passwd=passwd, db=db)
+            else:
+                # app.logger.error("Background connection reconnect")
+                conn = pymysql.connect(host=host, port=port, user=user, passwd=passwd, db=db)
+                time.sleep(2)
+                conn = pymysql.connect(host=host, port=port, user=user, passwd=passwd, db=db)
+                time.sleep(2)
+                conn = pymysql.connect(host=host, port=port, user=user, passwd=passwd, db=db)
+        except pymysql.err.OperationalError as e:
+            # app.logger.error(f"Background DBdown: {e}")
+            conn = pymysql.connect(host=host, port=port, user=user, passwd=passwd, db=db)
+            time.sleep(2)
+            conn = pymysql.connect(host=host, port=port, user=user, passwd=passwd, db=db)
+            time.sleep(2)
+            conn = pymysql.connect(host=host, port=port, user=user, passwd=passwd, db=db)
 
         if len(cookiekey) != 0:
             cur = conn.cursor()
@@ -1973,33 +2237,91 @@ def expiryactivetaps():
                 for row in results:
                     tapname = row[1]
                     tapid = row[0]
+                    y = tapname.index("-")
+                    # print(y)
+                    TapDestName = (tapname[0:y])
+                    WorkloadDestName = (tapname[y + 1:])
+
                     url = ('https://%s/configs/monitoring/v1/tenant/default/MirrorSession/%s' % (ipman, tapname))
                     headers = ({'Content-Type': 'application/json', 'cookie': cookiekey})
                     # body = """{"meta":{"name":"ExampleMirror"},"spec":{"packet-size":2048,"collectors":[{"type":"erspan_type_3","export-config":{"destination":"192.168.102.106","gateway":"192.168.102.1"},"strip-vlan-hdr":null}],"match-rules":[{"source":{"ip-addresses":["192.168.101.0/24"]},"destination":{"ip-addresses":["any"]},"app-protocol-selectors":{"proto-ports":["any"]}},{"source":{"ip-addresses":["any"]},"destination":{"ip-addresses":["192.168.101.0/24"]},"app-protocol-selectors":{"proto-ports":["any"]}}],"packet-filters":["all-packets"],"interfaces":null,"span-id":2}}"""
-                    req = requests.delete(url, headers=headers, verify=False)
-                    #print(req.status_code)
-                    #print(req.headers)
-                    #print(req.text)
 
-                    if req.status_code == 200:
-                        cur.execute(" Delete from `ActiveTaps` where uid = %s", tapid)
-                        ## commit and close ##
-                        conn.commit()
-                    #else:
+                    try:
+                        req = requests.delete(url, headers=headers, verify=False)
+                        if req.status_code == 200:
+                            cur.execute(" Delete from `ActiveTaps` where uid = %s", tapid)
+                            ## commit and close ##
+                            app.logger.warning(f'Info - The TAP: {tapname} was removed by the system ')
+                            conn.commit()
+
+                            TapActiveID = tapid
+                            # print(TapActiveID)
+
+                            cur3 = conn.cursor()
+                            state3 = (
+                                         "update TapsAudit set TapDeleted = now() ,"
+                                         "DeletedBy = 'system' where TapActiveID = %s and TapName = '%s' and WorkloadName = '%s'"
+                                         " and TapDeleted is null;") % (
+                                         TapActiveID, TapDestName, WorkloadDestName)
+                            cur3.execute(state3)
+                            conn.commit()
+                            cur3.close()
+
+                    except requests.ConnectionError:
+                        app.logger.warning('Info - No PSM accessable for auto Deletion')
+
+                    # else:
 
                 cur.close()
-                time.sleep(60)
+                time.sleep(20)
             else:
                 cur.close()
-                time.sleep(60)
+                time.sleep(20)
 
         else:
             time.sleep(300)
 
+def cleanauditlog():
+    ''' 	Background job to clean the audit log to the last 7 days of data. '''
+    while True:
+
+        global conn
+        try:
+            if (pymysql.connect(host=host, port=port, user=user, passwd=passwd, db=db)):
+                #app.logger.info("Background connection exists")
+                conn = pymysql.connect(host=host, port=port, user=user, passwd=passwd, db=db)
+            else:
+                #app.logger.error("Background connection reconnect")
+                conn = pymysql.connect(host=host, port=port, user=user, passwd=passwd, db=db)
+                time.sleep(2)
+                conn = pymysql.connect(host=host, port=port, user=user, passwd=passwd, db=db)
+                time.sleep(2)
+                conn = pymysql.connect(host=host, port=port, user=user, passwd=passwd, db=db)
+        except pymysql.err.OperationalError as e:
+            #app.logger.error(f"Background DBdown: {e}")
+            conn = pymysql.connect(host=host, port=port, user=user, passwd=passwd, db=db)
+            time.sleep(2)
+            conn = pymysql.connect(host=host, port=port, user=user, passwd=passwd, db=db)
+            time.sleep(2)
+            conn = pymysql.connect(host=host, port=port, user=user, passwd=passwd, db=db)
+
+        cur = conn.cursor()
+        state = (
+                     "delete from TapsAudit where TransTime < (date_sub(now(), interval %s day));") % (auditlog)
+
+        cur.execute(state)
+        conn.commit()
+        cur.close()
+        app.logger.warning('Info - Audit Log clean down')
+
+        time.sleep(43200)
+
+
+
 """
 FORM DATA SECTION FOR VALIDATION.
-"""	
-    
+"""
+
 
 class ChangePwd(Form):
     currentpwd = PasswordField('Current Password', [validators.Length(min=1, max=50)])
@@ -2017,51 +2339,68 @@ class AddAdminForm(Form):
 
 
 class AddTapTargetForm(Form):
-    erspan = [ ('erspan_type_3', 'ERSPAN Type 3'),('erspan_type_2', 'ERSPAN Type 2')]
-    packet = [('2048', 'Full'),  ('1024', '1024'),  ('512', '512'),('256', '256'),('128', '128'),  ('64', '64')]
-    #packet = [(2048, 2048), (1024, 1024), (512, 512), (256, 256), (128, 128), (64, 64)]
-    tapvlan =  [('Y', 'Yes'), ('N', 'No')]
-    tapname = StringField('Tap service Name', [validators.Regexp(r'^[\w.@+-]+$', message="No Spaces Allowed, valid characters are '_.@+-' "),validators.Length(min=1, max=50, message="Name is required as will be used in the any Tap rules")])
-    taptype = SelectField('ERSPAN Type', choices = erspan )
-    tapip =  StringField('Destination IP', [validators.IPAddress(ipv4=True , message="Enter a valid IP Address")])
-    tapgateway = StringField('Gateway', [validators.IPAddress(ipv4=True , message="Enter a valid IP Address")])
-    tapdesc = StringField('Description', [validators.Length(min=1, max=50, message="Please enter a description/reason" )])
-    tapstrip = SelectField('Strip Vlan', choices = tapvlan)
-    tappacket = SelectField('Packet Size', choices = packet)
+    erspan = [('erspan_type_3', 'ERSPAN Type 3'), ('erspan_type_2', 'ERSPAN Type 2')]
+    packet = [('2048', 'Full'), ('1024', '1024'), ('512', '512'), ('256', '256'), ('128', '128'), ('64', '64')]
+    # packet = [(2048, 2048), (1024, 1024), (512, 512), (256, 256), (128, 128), (64, 64)]
+    tapvlan = [('Y', 'Yes'), ('N', 'No')]
+    tapname = StringField('Tap service Name', [
+        validators.Length(min=1, max=50, message="Name is required as will be used in the any Tap rules")])
+    taptype = SelectField('ERSPAN Type', choices=erspan)
+    tapip = StringField('Destination IP', [validators.IPAddress(ipv4=True, message="Enter a valid IP Address")])
+    tapgateway = StringField('Gateway', [validators.IPAddress(ipv4=True, message="Enter a valid IP Address")])
+    tapdesc = StringField('Description',
+                          [validators.Length(min=1, max=50, message="Please enter a description/reason")])
+    tapstrip = SelectField('Strip Vlan', choices=tapvlan)
+    tappacket = SelectField('Packet Size', choices=packet)
+
 
 class ViewTapTargetForm(Form):
-    erspan = [ ('erspan_type_3', 'ERSPAN Type 3'),('erspan_type_2', 'ERSPAN Type 2')]
+    erspan = [('erspan_type_3', 'ERSPAN Type 3'), ('erspan_type_2', 'ERSPAN Type 2')]
     tapvlan = [('Yes', 'Yes'), ('No', 'No')]
-    packet = [('2048', 'Full'),  ('1024', '1024'),  ('512', '512'),('256', '256'),('128', '128'),  ('64', '64')]
+    packet = [('2048', 'Full'), ('1024', '1024'), ('512', '512'), ('256', '256'), ('128', '128'), ('64', '64')]
     tapname = StringField('Tap service Name', render_kw={'readonly': True})
-    taptype = SelectField('ERSPAN Type', choices = erspan )
-    tapip =  StringField('Destination IP', render_kw={'readonly': True})
+    taptype = SelectField('ERSPAN Type', choices=erspan)
+    tapip = StringField('Destination IP', render_kw={'readonly': True})
     tapgateway = StringField('Gateway', render_kw={'readonly': True})
-    tapdesc = StringField('Description', [validators.Length(min=1, max=50, message="Please enter a description/reason" )])
-    tapstrip = SelectField('Strip Vlan', choices = tapvlan)
-    tappacket = SelectField('Packet Size', choices = packet)
-
+    tapdesc = StringField('Description',
+                          [validators.Length(min=1, max=50, message="Please enter a description/reason")])
+    tapstrip = SelectField('Strip Vlan', choices=tapvlan)
+    tappacket = SelectField('Packet Size', choices=packet)
 
 
 class AddWorkloadTargetForm(Form):
-    workloadname = StringField('Workload Filter Name', [validators.Regexp(r'^[\w.@+-]+$', message="No Spaces Allowed, valid characters are '_.@+-' "),validators.Length(min=1, max=50, message="Name is required as will be used in the any Tap rules")])
+    workloadname = StringField('Workload Filter Name', [
+        validators.Length(min=1, max=50, message="Name is required as will be used in the any Tap rules")])
     workloaddesc = StringField('Filter Description', [validators.Length(min=1, max=50, message="Local Description")])
-    worksource1 = StringField('Filter Source 1 - Option of format are (a.b.c.d/e or a.b.c.d or any)', [validators.Length(min=1, max=100, message="Format -------" )])
-    workdest1 = StringField('Filter Destination 1 - Option of format are (a.b.c.d/e or a.b.c.d or any)', [validators.Length(min=1, max=100, message="Format -------")])
-    workprot1 = StringField('Filter Protocol 1 - Option of format are (icmp or any or tcp/5000-5100)', [validators.Length(min=1, max=100, message="Format -------")])
-    worksource2 = StringField('Filter Source 2 - Option of format are (a.b.c.d/e or a.b.c.d or any)', [validators.Length(min=0, max=100, message="Format -------")])
-    workdest2 = StringField('Filter Destination 2 - Option of format are (a.b.c.d/e or a.b.c.d or any)', [validators.Length(min=0, max=100, message="Format -------")])
-    workprot2 = StringField('Filter Protocol 2 - Option of format are (22 or 22,23,24 or any)', [validators.Length(min=0, max=100, message="Format -------")])
+    worksource1 = StringField('Filter Source 1 - Option of format are (a.b.c.d/e or a.b.c.d or any)',
+                              [validators.Length(min=1, max=100, message="Format -------")])
+    workdest1 = StringField('Filter Destination 1 - Option of format are (a.b.c.d/e or a.b.c.d or any)',
+                            [validators.Length(min=1, max=100, message="Format -------")])
+    workprot1 = StringField('Filter Protocol 1 - Option of format are (icmp or any or tcp/5000-5100)',
+                            [validators.Length(min=1, max=100, message="Format -------")])
+    worksource2 = StringField('Filter Source 2 - Option of format are (a.b.c.d/e or a.b.c.d or any)',
+                              [validators.Length(min=0, max=100, message="Format -------")])
+    workdest2 = StringField('Filter Destination 2 - Option of format are (a.b.c.d/e or a.b.c.d or any)',
+                            [validators.Length(min=0, max=100, message="Format -------")])
+    workprot2 = StringField('Filter Protocol 2 - Option of format are (22 or 22,23,24 or any)',
+                            [validators.Length(min=0, max=100, message="Format -------")])
+
 
 class ViewWorkloadTargetForm(Form):
     workloadname = StringField('Workload Filter Name', render_kw={'readonly': True})
     workloaddesc = StringField('Filter Description', [validators.Length(min=1, max=50, message="Local Description")])
-    worksource1 = StringField('Filter Source 1 - Option of format are (a.b.c.d/e or a.b.c.d or any)', [validators.Length(min=1, max=100, message="Format -------" )])
-    workdest1 = StringField('Filter Destination 1 - Option of format are (a.b.c.d/e or a.b.c.d or any)', [validators.Length(min=1, max=100, message="Format -------")])
-    workprot1 = StringField('Filter Protocol 1 - Option of format are (icmp or any or tcp/5000-5100)', [validators.Length(min=1, max=100, message="Format -------")])
-    worksource2 = StringField('Filter Source 2 - Option of format are (a.b.c.d/e or a.b.c.d or any)', [validators.Length(min=0, max=100, message="Format -------")])
-    workdest2 = StringField('Filter Destination 2 - Option of format are (a.b.c.d/e or a.b.c.d or any)', [validators.Length(min=0, max=100, message="Format -------")])
-    workprot2 = StringField('Filter Protocol 2 - Option of format are (22 or 22,23,24 or any)', [validators.Length(min=0, max=100, message="Format -------")])
+    worksource1 = StringField('Filter Source 1 - Option of format are (a.b.c.d/e or a.b.c.d or any)',
+                              [validators.Length(min=1, max=100, message="Format -------")])
+    workdest1 = StringField('Filter Destination 1 - Option of format are (a.b.c.d/e or a.b.c.d or any)',
+                            [validators.Length(min=1, max=100, message="Format -------")])
+    workprot1 = StringField('Filter Protocol 1 - Option of format are (icmp or any or tcp/5000-5100)',
+                            [validators.Length(min=1, max=100, message="Format -------")])
+    worksource2 = StringField('Filter Source 2 - Option of format are (a.b.c.d/e or a.b.c.d or any)',
+                              [validators.Length(min=0, max=100, message="Format -------")])
+    workdest2 = StringField('Filter Destination 2 - Option of format are (a.b.c.d/e or a.b.c.d or any)',
+                            [validators.Length(min=0, max=100, message="Format -------")])
+    workprot2 = StringField('Filter Protocol 2 - Option of format are (22 or 22,23,24 or any)',
+                            [validators.Length(min=0, max=100, message="Format -------")])
 
 
 class DeleteAdminForm(Form):
@@ -2069,25 +2408,30 @@ class DeleteAdminForm(Form):
     username = StringField('Login', render_kw={'readonly': True})
     useremail = EmailField('Email address', render_kw={'readonly': True})
 
+
 class DeleteTapForm(Form):
     id = IntegerField('id', render_kw={'readonly': True})
     tapname = StringField('Tap Name', render_kw={'readonly': True})
     tapexpiry = StringField('Tap Expiry Time', render_kw={'readonly': True})
+
 
 class DeleteAssignedTapForm(Form):
     id = IntegerField('id', render_kw={'readonly': True})
     tapname = StringField('Login', render_kw={'readonly': True})
     destination = StringField('Destination', render_kw={'readonly': True})
 
+
 class DeleteAssignedWorkloadForm(Form):
     id = IntegerField('id', render_kw={'readonly': True})
     workloadname = StringField('Workload Name', render_kw={'readonly': True})
+
 
 class DeleteTapTargetForm(Form):
     id = IntegerField('id', render_kw={'readonly': True})
     tapname = StringField('Tap Name', render_kw={'readonly': True})
     taptype = StringField('Tap Type', render_kw={'readonly': True})
     tapdest = StringField('Tap Destination', render_kw={'readonly': True})
+
 
 class DeleteWorkloadTargetForm(Form):
     id = IntegerField('id', render_kw={'readonly': True})
@@ -2105,9 +2449,11 @@ class Force(Form):
     checkbox = BooleanField('Agree?', validators=[validators.DataRequired(), ])
 
 
-    
 if __name__ == '__main__':
-    # TODO:  need to build background job :
+    handler = RotatingFileHandler('/app/PenTapasaService/tapas.log', maxBytes=10000000, backupCount=1)
+    handler.setLevel(logging.DEBUG)
+    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    handler.setFormatter(formatter)
+    app.logger.addHandler(handler)
     initBackgroundProcs()
-    app.secret_key = 'PensandoTapAsAService'
     app.run(debug=True, host=webhost, port=webport)
