@@ -1,0 +1,57 @@
+{% extends 'layout.html' %}
+
+{% block body %}
+<div class='jumbotron text-center'>
+      <h1>View details of active TAP<br></h1><br>
+      </div>
+          <a class="btn btn-info" onclick="window.history.back()">Back</a>
+     {% from "includes/_formhelpers.html" import render_field %}
+     <form method="POST" action="">
+              <div class="form-group">
+             {{render_field(form.tapname, class="form-control")}}
+         </div>
+         <div class="form-group">
+             {{render_field(form.taptype, class="form-control")}}
+         </div>
+         <div class="form-group">
+             {{render_field(form.tapip, class="form-control")}}
+         </div>
+         <div class="form-group">
+             {{render_field(form.tapgateway, class="form-control")}}
+         </div>
+         <div class="form-group">
+             {{render_field(form.tapdesc, class="form-control")}}
+         </div>
+         <div class="form-group">
+             {{render_field(form.tapstrip, class="form-control")}}
+         </div>
+         <div class="form-group">
+             {{render_field(form.tappacket, class="form-control")}}
+         </div>
+
+         <div class="form-group">
+             {{render_field(form.workloadname, class="form-control")}}
+         </div>
+         <div class="form-group">
+             {{render_field(form.workloaddesc, class="form-control")}}
+         </div>
+         <div class="form-group">
+             {{render_field(form.worksource1, class="form-control")}}
+         </div>
+         <div class="form-group">
+             {{render_field(form.workdest1, class="form-control")}}
+         </div>
+         <div class="form-group">
+             {{render_field(form.workprot1, class="form-control")}}
+         </div>
+         <div class="form-group">
+             {{render_field(form.worksource2, class="form-control")}}
+         </div>
+         <div class="form-group">
+             {{render_field(form.workdest2, class="form-control")}}
+         </div>
+         <div class="form-group">
+             {{render_field(form.workprot2, class="form-control")}}
+         </div>
+     </form>
+{% endblock %}
