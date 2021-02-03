@@ -1,3 +1,55 @@
+
+# Copyright (c) 2020, Pensando Systems
+#
+# Permission to use, copy, modify, and/or distribute this software for any
+# purpose with or without fee is hereby granted, provided that the above
+# copyright notice and this permission notice appear in all copies.
+#
+# THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+# WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+# MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
+# ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+# WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
+# ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
+# OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+# Author: Toby Makepeace <toby@pensando.io>
+
+"""
+Pensando Systems Tap As A Server
+The tool is just to provide a demo of the capabilities of building
+Tap as a Service for the network/compute consumers/business units.
+|Instructions/Usage statement including parameters|
+This software is provided without support, warranty, or guarantee. Use at your own risk.
+"""
+
+''' A one-line docstring '''
+# TODO: Write some code after this block comment
+# FIXME: What needs to be fixes
+# NOTE: a simple refernce note.
+
+"""	
+A multiline docstring. 	
+Keyword arguments: 	
+parameter -- an example parameter (default False) 	
+"""
+
+"""	
+Each section of web code needs to validate the loggedin session cookie. 	
+example:	
+    if 'loggedin' in session:	
+        <then>	
+    return redirect(url_for('login'))	
+if you need to do a admin password reset from to get the output needed to be loaded in the DB	
+from a python console. 	
+> password1 = generate_password_hash('Pensando0$')	
+> print password1	
+from werkzeug.security import generate_password_hash, check_password_hash	
+print(generate_password_hash('test'))	
+"""
+
+
+
+
 # TODO: The threading and time options will be needed when i create the background jobs.
 import threading
 import time
@@ -1394,7 +1446,10 @@ def adminenabletapcreate():
                             }
                             ]
                         """ % (TapPacket, TapType, TapDest, TapGateway))
-        if WorkSoure2 is None:
+
+        #if WorkSoure2 is None:
+        if len(WorkSoure2) < 1:
+
             # print("single")
             rules = ("""
                         "match-rules":[{
@@ -1547,9 +1602,9 @@ def admindeletetap(id):
                 headers = ({'Content-Type': 'application/json', 'cookie': cookiekey})
                 # body = """{"meta":{"name":"ExampleMirror"},"spec":{"packet-size":2048,"collectors":[{"type":"erspan_type_3","export-config":{"destination":"192.168.102.106","gateway":"192.168.102.1"},"strip-vlan-hdr":null}],"match-rules":[{"source":{"ip-addresses":["192.168.101.0/24"]},"destination":{"ip-addresses":["any"]},"app-protocol-selectors":{"proto-ports":["any"]}},{"source":{"ip-addresses":["any"]},"destination":{"ip-addresses":["192.168.101.0/24"]},"app-protocol-selectors":{"proto-ports":["any"]}}],"packet-filters":["all-packets"],"interfaces":null,"span-id":2}}"""
                 req = requests.delete(url, headers=headers, verify=False)
-                # print(req.status_code)
-                # print(req.headers)
-                # print(req.text)
+                #print(req.status_code)
+                #print(req.headers)
+                #print(req.text)
 
                 if req.status_code == 200:
                     cur2 = conn.cursor()
@@ -1575,6 +1630,31 @@ def admindeletetap(id):
 
                     flash('Tap deleted', 'success')
                     return redirect(url_for('adminactivetap'))
+                elif req.status_code == 404:
+                    cur2 = conn.cursor()
+                    cur2.execute(" Delete from `ActiveTaps` where uid = %s", [id])
+                    ## commit and close ##
+                    conn.commit()
+                    cur2.close()
+
+                    #username = session['username']
+                    TapActiveID = id
+                    # print(TapActiveID)
+
+                    cur3 = conn.cursor()
+                    state3 = (
+                                 "update TapsAudit set TapDeleted = now() ,"
+                                 "DeletedBy = 'From PSM' where TapActiveID = %s and TapName = '%s' and WorkloadName = '%s'"
+                                 " and TapDeleted is null;") % ( TapActiveID, TapDestName, WorkloadDestName)
+                    cur3.execute(state3)
+                    conn.commit()
+                    cur3.close()
+                    app.logger.warning(
+                        f'Info - The TAP Destination: {TapDestName} with Filter: {WorkloadDestName} was already Deleted from the system by PSM')
+
+                    flash('Tap was already deleted on PSM', 'warning')
+                    return redirect(url_for('adminactivetap'))
+
                 return redirect(url_for('adminactivetap'))
             else:
                 flash('Tap already deleted', 'success')
@@ -1671,6 +1751,105 @@ def activetap():
             return render_template('activetap.html', msg=msg)
 
     return redirect(url_for('home'))
+
+@app.route("/viewactivetap/<string:id>/", methods=['GET'])
+def viewactivetap(id):
+    if 'loggedin' in session:
+        cur = conn.cursor()
+
+        cur.execute(
+            " SELECT TapName  FROM `ActiveTaps` where UID = %s;",
+            [id])
+        results = cur.fetchone()
+        tapworkloadname = results[0]
+        x = tapworkloadname.index("-")
+        tapname = tapworkloadname[:x]
+        workloadname = tapworkloadname[x+1:]
+        #print(tapname)
+        #print(workloadname)
+
+        cur.execute(
+            " SELECT uid, name, type, inet_NTOA(IPaddr) as dest,inet_NTOA(Gateway) as gate , Description, StripVlan, PacketSize   FROM `Taps` where name = %s;",
+            tapname)
+        results1 = cur.fetchone()
+
+        cur.execute(
+            " SELECT UID, Name, Description , Source1, Destin1, Prot1, Source2, Destin2, Prot2 FROM `Workloads` where name = %s;",
+            workloadname)
+        results2 = cur.fetchone()
+
+        form = ViewUserTapTargetForm(request.form)
+
+        if request.method == 'GET':
+            form.tapname.data = results1[1]
+            form.taptype.data = results1[2]
+            form.tapip.data = results1[3]
+            form.tapgateway.data = results1[4]
+            form.tapdesc.data = results1[5]
+            form.tapstrip.data = results1[6]
+            form.tappacket.data = str(results1[7])
+            form.workloadname.data = results2[1]
+            form.workloaddesc.data = results2[2]
+            form.worksource1.data = results2[3]
+            form.workdest1.data = results2[4]
+            form.workprot1.data = results2[5]
+            form.worksource2.data = results2[6]
+            form.workdest2.data = results2[7]
+            form.workprot2.data = results2[8]
+
+        cur.close()
+        return render_template('viewactivetap.html', form=form)
+    return redirect(url_for('home'))
+
+@app.route("/adminviewactivetap/<string:id>/", methods=['GET'])
+def adminviewactivetap(id):
+    if 'loggedin' in session:
+        cur = conn.cursor()
+
+        cur.execute(
+            " SELECT TapName  FROM `ActiveTaps` where UID = %s;",
+            [id])
+        results = cur.fetchone()
+        tapworkloadname = results[0]
+        x = tapworkloadname.index("-")
+        tapname = tapworkloadname[:x]
+        workloadname = tapworkloadname[x+1:]
+        #print(tapname)
+        #print(workloadname)
+
+        cur.execute(
+            " SELECT uid, name, type, inet_NTOA(IPaddr) as dest,inet_NTOA(Gateway) as gate , Description, StripVlan, PacketSize   FROM `Taps` where name = %s;",
+            tapname)
+        results1 = cur.fetchone()
+
+        cur.execute(
+            " SELECT UID, Name, Description , Source1, Destin1, Prot1, Source2, Destin2, Prot2 FROM `Workloads` where name = %s;",
+            workloadname)
+        results2 = cur.fetchone()
+
+        form = ViewUserTapTargetForm(request.form)
+
+        if request.method == 'GET':
+            form.tapname.data = results1[1]
+            form.taptype.data = results1[2]
+            form.tapip.data = results1[3]
+            form.tapgateway.data = results1[4]
+            form.tapdesc.data = results1[5]
+            form.tapstrip.data = results1[6]
+            form.tappacket.data = str(results1[7])
+            form.workloadname.data = results2[1]
+            form.workloaddesc.data = results2[2]
+            form.worksource1.data = results2[3]
+            form.workdest1.data = results2[4]
+            form.workprot1.data = results2[5]
+            form.worksource2.data = results2[6]
+            form.workdest2.data = results2[7]
+            form.workprot2.data = results2[8]
+
+        cur.close()
+        return render_template('adminviewactivetap.html', form=form)
+
+
 
 
 @app.route("/enabletap")
@@ -1830,7 +2009,10 @@ def enabletapcreate():
                             }
                             ]
                         """ % (TapPacket, TapType, TapDest, TapGateway))
-        if WorkSoure2 is None:
+
+        #if WorkSoure2 is None:
+        if len(WorkSoure2) < 1:
+
             # print("single")
             rules = ("""
                         "match-rules":[{
@@ -2121,7 +2303,9 @@ def initBackgroundProcs():
         file = open("psm.cfg")
         file.close()
     except IOError:
-        app.logger.info("After a upgrade a new psm.cfg need to be built and a few DB Connections might fail to restarts.")
+
+        #app.logger.info("After a upgrade a new psm.cfg need to be built and a few DB Connections might fail to restarts.")
+
         # time.sleep(10)
         file = open("psm.cfg", "w")
         file.write(
@@ -2159,45 +2343,50 @@ def refreshkey():
             #			print(jsonbody)
             #			print(body)
             #			print(headers)
-            req = requests.post(url, headers=headers, data=jsonbody, verify=False)
-            #			print(req.status_code)
-            if req.status_code == 200:
-                #			print(req.headers)
-                #			print(req.text)
-                app.logger.warning("Token Expired, and is now refreshed")
-                info = (req.headers)
-                #		info = (((req.json()).get('list-meta')).get('total-count'))
-                #		result = req.read()
-                #		info = req.info()
-                #			print(info)
-
-                cookiePSM = info['set-cookie']
-                #			print(cookiePSM)
-                x = cookiePSM.index(";")
-                cookiekey = cookiePSM[:x]
-                #			print(x)
-                #			print(cookiekey)
-                y = cookiePSM.index("Expires=")
-
-                #			print(y)
-                expires = (cookiePSM[y + 8:])
-                z = expires.index(";")
-                cookieexpiry = expires[:z]
-                #			print(cookieexpiry)
-
-                file = open("psm.cfg", "w")
-                file.write(
-                    f"[global]\nipman = \'{ipman}\'\nadminuser = \'{adminuser}\'\nadminpwd = \'{adminpwd}\'\ncookiekey = \'{cookiekey}\'\nexpiry = \'{cookieexpiry}\'\n")
-                file.close()
-                #app.logger.warning("Token Expired, refreshed")
 
 
-            else:
-                '''Sleep for 12 hours before re-test'''
-                app.logger.error("Token Expired, refreshed failed")
-                time.sleep(43200)
+            try:
+                req = requests.post(url, headers=headers, data=jsonbody, verify=False)
+                #			print(req.status_code)
+                if req.status_code == 200:
+                    #			print(req.headers)
+                    #			print(req.text)
+                    # app.logger.info("Token Expired, and is now refreshed")
+                    info = (req.headers)
+                    #		info = (((req.json()).get('list-meta')).get('total-count'))
+                    #		result = req.read()
+                    #		info = req.info()
+                    #			print(info)
+
+                    cookiePSM = info['set-cookie']
+                    #			print(cookiePSM)
+                    x = cookiePSM.index(";")
+                    cookiekey = cookiePSM[:x]
+                    #			print(x)
+                    #			print(cookiekey)
+                    y = cookiePSM.index("Expires=")
+
+                    #			print(y)
+                    expires = (cookiePSM[y + 8:])
+                    z = expires.index(";")
+                    cookieexpiry = expires[:z]
+                    #			print(cookieexpiry)
+
+                    file = open("psm.cfg", "w")
+                    file.write(
+                        f"[global]\nipman = \'{ipman}\'\nadminuser = \'{adminuser}\'\nadminpwd = \'{adminpwd}\'\ncookiekey = \'{cookiekey}\'\nexpiry = \'{cookieexpiry}\'\n")
+                    file.close()
+                    app.logger.warning("Token Expired, refreshed")
 
 
+                elif req.status_code == 404:
+                    '''Sleep for 12 hours before re-test'''
+                    app.logger.error("Token Expired, refreshed failed")
+                    time.sleep(43200)
+
+            except requests.ConnectionError:
+                app.logger.warning('Info - No PSM accessable for Key renewal')
+                time.sleep(60)
         else:
             time.sleep(43200)
 
@@ -2212,7 +2401,7 @@ def expiryactivetaps():
         global conn
         try:
             if (pymysql.connect(host=host, port=port, user=user, passwd=passwd, db=db)):
-                #app.logger.info("Background connection exists")
+                app.logger.info("Background connection exists")
                 conn = pymysql.connect(host=host, port=port, user=user, passwd=passwd, db=db)
             else:
                 # app.logger.error("Background connection reconnect")
@@ -2231,74 +2420,98 @@ def expiryactivetaps():
 
         if len(cookiekey) != 0:
             cur = conn.cursor()
-            result = cur.execute(" select uid, TapName , TapExpiry from ActiveTaps where TapExpiry < now();")
-            results = cur.fetchall()
-            if result > 0:
-                for row in results:
-                    tapname = row[1]
-                    tapid = row[0]
-                    y = tapname.index("-")
-                    # print(y)
-                    TapDestName = (tapname[0:y])
-                    WorkloadDestName = (tapname[y + 1:])
+            try:
+                result = cur.execute(" select uid, TapName , TapExpiry from ActiveTaps where TapExpiry < now();")
+                results = cur.fetchall()
+                if result > 0:
+                    for row in results:
+                        tapname = row[1]
+                        tapid = row[0]
+                        y = tapname.index("-")
+                        # print(y)
+                        TapDestName = (tapname[0:y])
+                        WorkloadDestName = (tapname[y + 1:])
+                        TapActiveID = tapid
 
-                    url = ('https://%s/configs/monitoring/v1/tenant/default/MirrorSession/%s' % (ipman, tapname))
-                    headers = ({'Content-Type': 'application/json', 'cookie': cookiekey})
-                    # body = """{"meta":{"name":"ExampleMirror"},"spec":{"packet-size":2048,"collectors":[{"type":"erspan_type_3","export-config":{"destination":"192.168.102.106","gateway":"192.168.102.1"},"strip-vlan-hdr":null}],"match-rules":[{"source":{"ip-addresses":["192.168.101.0/24"]},"destination":{"ip-addresses":["any"]},"app-protocol-selectors":{"proto-ports":["any"]}},{"source":{"ip-addresses":["any"]},"destination":{"ip-addresses":["192.168.101.0/24"]},"app-protocol-selectors":{"proto-ports":["any"]}}],"packet-filters":["all-packets"],"interfaces":null,"span-id":2}}"""
+                        url = ('https://%s/configs/monitoring/v1/tenant/default/MirrorSession/%s' % (ipman, tapname))
+                        headers = ({'Content-Type': 'application/json', 'cookie': cookiekey})
+                        # body = """{"meta":{"name":"ExampleMirror"},"spec":{"packet-size":2048,"collectors":[{"type":"erspan_type_3","export-config":{"destination":"192.168.102.106","gateway":"192.168.102.1"},"strip-vlan-hdr":null}],"match-rules":[{"source":{"ip-addresses":["192.168.101.0/24"]},"destination":{"ip-addresses":["any"]},"app-protocol-selectors":{"proto-ports":["any"]}},{"source":{"ip-addresses":["any"]},"destination":{"ip-addresses":["192.168.101.0/24"]},"app-protocol-selectors":{"proto-ports":["any"]}}],"packet-filters":["all-packets"],"interfaces":null,"span-id":2}}"""
 
-                    try:
-                        req = requests.delete(url, headers=headers, verify=False)
-                        if req.status_code == 200:
-                            cur.execute(" Delete from `ActiveTaps` where uid = %s", tapid)
-                            ## commit and close ##
-                            app.logger.warning(f'Info - The TAP: {tapname} was removed by the system ')
-                            conn.commit()
+                        try:
+                            req = requests.delete(url, headers=headers, verify=False)
+                            if req.status_code == 200:
+                                cur.execute(" Delete from `ActiveTaps` where uid = %s", tapid)
+                                ## commit and close ##
+                                conn.commit()
 
-                            TapActiveID = tapid
-                            # print(TapActiveID)
+                                cur3 = conn.cursor()
+                                state3 = (
+                                             "update TapsAudit set TapDeleted = now() ,"
+                                             "DeletedBy = 'system' where TapActiveID = %s and TapName = '%s' and WorkloadName = '%s'"
+                                             " and TapDeleted is null;") % (
+                                             TapActiveID, TapDestName, WorkloadDestName)
+                                cur3.execute(state3)
+                                conn.commit()
+                                cur3.close()
+                                app.logger.warning(
+                                    f'Info - The TAP Destination: {TapDestName} with Filter: {WorkloadDestName}  was removed by the system ')
+                            elif req.status_code == 404:
+                                cur2 = conn.cursor()
+                                cur2.execute(" Delete from `ActiveTaps` where uid = %s", tapid)
+                                ## commit and close ##
+                                conn.commit()
+                                cur2.close()
 
-                            cur3 = conn.cursor()
-                            state3 = (
-                                         "update TapsAudit set TapDeleted = now() ,"
-                                         "DeletedBy = 'system' where TapActiveID = %s and TapName = '%s' and WorkloadName = '%s'"
-                                         " and TapDeleted is null;") % (
-                                         TapActiveID, TapDestName, WorkloadDestName)
-                            cur3.execute(state3)
-                            conn.commit()
-                            cur3.close()
 
-                    except requests.ConnectionError:
-                        app.logger.warning('Info - No PSM accessable for auto Deletion')
+                                cur3 = conn.cursor()
+                                state3 = (
+                                             "update TapsAudit set TapDeleted = now() ,"
+                                             "DeletedBy = 'From PSM' where TapActiveID = %s and TapName = '%s' and WorkloadName = '%s'"
+                                             " and TapDeleted is null;") % (TapActiveID, TapDestName, WorkloadDestName)
+                                cur3.execute(state3)
+                                conn.commit()
+                                cur3.close()
+                                app.logger.warning(
+                                    f'Info - The TAP Destination: {TapDestName} with Filter: {WorkloadDestName} was already Deleted from the system by PSM')
 
-                    # else:
 
-                cur.close()
-                time.sleep(20)
-            else:
-                cur.close()
-                time.sleep(20)
+                        except requests.ConnectionError:
+                            'If PSM not available wait 60 seconds and try again'
+                            app.logger.warning('Info - No PSM accessable for auto Deletion')
+                            time.sleep(60)
 
+                        # else:
+                    cur.close()
+
+                else:
+                    cur.close()
+                    time.sleep(20)
+            except pymysql.err.OperationalError as e:
+                app.logger.error(f"Background ExpiryActive Tap DBerror: {e}")
+            cur.close()
         else:
+            'this is set to 300 seconds, as it is waiting on the user to do the PSM registration in the background.'
             time.sleep(300)
 
 def cleanauditlog():
-    ''' 	Background job to clean the audit log to the last 7 days of data. '''
+    """ 	Background job to clean the audit log to the last 7 days of data. """
     while True:
 
         global conn
         try:
-            if (pymysql.connect(host=host, port=port, user=user, passwd=passwd, db=db)):
-                #app.logger.info("Background connection exists")
+            if pymysql.connect(host=host, port=port, user=user, passwd=passwd, db=db):
+                app.logger.info("Background connection exists")
                 conn = pymysql.connect(host=host, port=port, user=user, passwd=passwd, db=db)
             else:
-                #app.logger.error("Background connection reconnect")
+                app.logger.error("Background connection reconnect")
                 conn = pymysql.connect(host=host, port=port, user=user, passwd=passwd, db=db)
                 time.sleep(2)
                 conn = pymysql.connect(host=host, port=port, user=user, passwd=passwd, db=db)
                 time.sleep(2)
                 conn = pymysql.connect(host=host, port=port, user=user, passwd=passwd, db=db)
         except pymysql.err.OperationalError as e:
-            #app.logger.error(f"Background DBdown: {e}")
+
+            app.logger.error(f"Background DBdown: {e}")
             conn = pymysql.connect(host=host, port=port, user=user, passwd=passwd, db=db)
             time.sleep(2)
             conn = pymysql.connect(host=host, port=port, user=user, passwd=passwd, db=db)
@@ -2306,13 +2519,17 @@ def cleanauditlog():
             conn = pymysql.connect(host=host, port=port, user=user, passwd=passwd, db=db)
 
         cur = conn.cursor()
-        state = (
-                     "delete from TapsAudit where TransTime < (date_sub(now(), interval %s day));") % (auditlog)
 
-        cur.execute(state)
-        conn.commit()
-        cur.close()
-        app.logger.warning('Info - Audit Log clean down')
+        try:
+            cleanstate = (
+                         "delete from TapsAudit where TransTime < (date_sub(now(), interval %s day));") % (auditlog)
+
+            cur.execute(cleanstate)
+            conn.commit()
+            cur.close()
+            app.logger.warning('Info - Audit Log clean down')
+        except pymysql.err.OperationalError as e:
+            app.logger.error(f"Background TapsAudit DBerror: {e}")
 
         time.sleep(43200)
 
@@ -2331,7 +2548,7 @@ class ChangePwd(Form):
 
 
 class AddAdminForm(Form):
-    username = StringField('Login', [validators.Length(min=1, max=50)])
+    username = StringField('Login', [validators.Regexp('^\w+$', message="Username must contain only letters numbers or underscore"),validators.Length(min=1, max=50)])
     useremail = EmailField('Email address', [validators.DataRequired(), validators.Email()])
     userpassword = PasswordField('New Password', [validators.DataRequired(),
                                                   validators.EqualTo('checkpwd', message='Passwords must match')])
@@ -2343,8 +2560,8 @@ class AddTapTargetForm(Form):
     packet = [('2048', 'Full'), ('1024', '1024'), ('512', '512'), ('256', '256'), ('128', '128'), ('64', '64')]
     # packet = [(2048, 2048), (1024, 1024), (512, 512), (256, 256), (128, 128), (64, 64)]
     tapvlan = [('Y', 'Yes'), ('N', 'No')]
-    tapname = StringField('Tap service Name', [
-        validators.Length(min=1, max=50, message="Name is required as will be used in the any Tap rules")])
+    tapname = StringField('Tap service Name', [validators.Regexp('^\w+$', message="Username must contain only letters numbers or underscore"),
+        validators.Length(min=1, max=50, message="Name is required as will be used in the any Tap rules, must contain only letters or numbers")])
     taptype = SelectField('ERSPAN Type', choices=erspan)
     tapip = StringField('Destination IP', [validators.IPAddress(ipv4=True, message="Enter a valid IP Address")])
     tapgateway = StringField('Gateway', [validators.IPAddress(ipv4=True, message="Enter a valid IP Address")])
@@ -2369,19 +2586,23 @@ class ViewTapTargetForm(Form):
 
 
 class AddWorkloadTargetForm(Form):
-    workloadname = StringField('Workload Filter Name', [
-        validators.Length(min=1, max=50, message="Name is required as will be used in the any Tap rules")])
+    workloadname = StringField('Workload Filter Name', [validators.Regexp('^\w+$', message="Username must contain only letters numbers or underscore"),
+        validators.Length(min=1, max=50, message="Name is required as will be used in the any Tap rules, must contain only letters or numbers")])
     workloaddesc = StringField('Filter Description', [validators.Length(min=1, max=50, message="Local Description")])
     worksource1 = StringField('Filter Source 1 - Option of format are (a.b.c.d/e or a.b.c.d or any)',
-                              [validators.Length(min=1, max=100, message="Format -------")])
+                              [validators.Regexp('^((([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])|(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])(?:/[0-2]\d|/3[0-2])|(any)?)$', message="IP-address or IP-address and Mask or \"any\" eg 1.1.1.1 or 1.1.1.1/32 or any"),
+                               validators.Length(min=1, max=100, message="Format -------")])
     workdest1 = StringField('Filter Destination 1 - Option of format are (a.b.c.d/e or a.b.c.d or any)',
-                            [validators.Length(min=1, max=100, message="Format -------")])
+                            [validators.Regexp('^((([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])|(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])(?:/[0-2]\d|/3[0-2])|(any)?)$', message="IP-address or IP-address and Mask or \"any\" eg 1.1.1.1 or 1.1.1.1/32 or any"),
+                             validators.Length(min=1, max=100, message="Format -------")])
     workprot1 = StringField('Filter Protocol 1 - Option of format are (icmp or any or tcp/5000-5100)',
                             [validators.Length(min=1, max=100, message="Format -------")])
     worksource2 = StringField('Filter Source 2 - Option of format are (a.b.c.d/e or a.b.c.d or any)',
-                              [validators.Length(min=0, max=100, message="Format -------")])
+                              [validators.Regexp('^((([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])|(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])(?:/[0-2]\d|/3[0-2])|(any)?)$', message="IP-address or IP-address and Mask or \"any\" eg 1.1.1.1 or 1.1.1.1/32 or any"),
+                               validators.Length(min=0, max=100, message="Format -------")])
     workdest2 = StringField('Filter Destination 2 - Option of format are (a.b.c.d/e or a.b.c.d or any)',
-                            [validators.Length(min=0, max=100, message="Format -------")])
+                            [validators.Regexp('^((([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])|(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])(?:/[0-2]\d|/3[0-2])|(any)?)$', message="IP-address or IP-address and Mask or \"any\" eg 1.1.1.1 or 1.1.1.1/32 or any"),
+                             validators.Length(min=0, max=100, message="Format -------")])
     workprot2 = StringField('Filter Protocol 2 - Option of format are (22 or 22,23,24 or any)',
                             [validators.Length(min=0, max=100, message="Format -------")])
 
@@ -2390,17 +2611,42 @@ class ViewWorkloadTargetForm(Form):
     workloadname = StringField('Workload Filter Name', render_kw={'readonly': True})
     workloaddesc = StringField('Filter Description', [validators.Length(min=1, max=50, message="Local Description")])
     worksource1 = StringField('Filter Source 1 - Option of format are (a.b.c.d/e or a.b.c.d or any)',
-                              [validators.Length(min=1, max=100, message="Format -------")])
+                              [validators.Regexp('^((([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])|(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])(?:/[0-2]\d|/3[0-2])|(any)?)$', message="IP-address or IP-address and Mask or \"any\" eg 1.1.1.1 or 1.1.1.1/32 or any"),
+                               validators.Length(min=1, max=100, message="Format -------")])
     workdest1 = StringField('Filter Destination 1 - Option of format are (a.b.c.d/e or a.b.c.d or any)',
-                            [validators.Length(min=1, max=100, message="Format -------")])
+                            [validators.Regexp('^((([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])|(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])(?:/[0-2]\d|/3[0-2])|(any)?)$', message="IP-address or IP-address and Mask or \"any\" eg 1.1.1.1 or 1.1.1.1/32 or any"),
+                             validators.Length(min=1, max=100, message="Format -------")])
     workprot1 = StringField('Filter Protocol 1 - Option of format are (icmp or any or tcp/5000-5100)',
                             [validators.Length(min=1, max=100, message="Format -------")])
     worksource2 = StringField('Filter Source 2 - Option of format are (a.b.c.d/e or a.b.c.d or any)',
-                              [validators.Length(min=0, max=100, message="Format -------")])
+                              [validators.Regexp('^((([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])|(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])(?:/[0-2]\d|/3[0-2])|(any)?)$', message="IP-address or IP-address and Mask or \"any\" eg 1.1.1.1 or 1.1.1.1/32 or any"),
+                               validators.Length(min=0, max=100, message="Format -------")])
     workdest2 = StringField('Filter Destination 2 - Option of format are (a.b.c.d/e or a.b.c.d or any)',
-                            [validators.Length(min=0, max=100, message="Format -------")])
+                            [validators.Regexp('^((([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])|(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])(?:/[0-2]\d|/3[0-2])|(any)?)$', message="IP-address or IP-address and Mask or \"any\" eg 1.1.1.1 or 1.1.1.1/32 or any"),
+                             validators.Length(min=0, max=100, message="Format -------")])
     workprot2 = StringField('Filter Protocol 2 - Option of format are (22 or 22,23,24 or any)',
                             [validators.Length(min=0, max=100, message="Format -------")])
+
+
+class ViewUserTapTargetForm(Form):
+    erspan = [('erspan_type_3', 'ERSPAN Type 3'), ('erspan_type_2', 'ERSPAN Type 2')]
+    tapvlan = [('Yes', 'Yes'), ('No', 'No')]
+    packet = [('2048', 'Full'), ('1024', '1024'), ('512', '512'), ('256', '256'), ('128', '128'), ('64', '64')]
+    tapname = StringField('Tap service Name', render_kw={'readonly': True})
+    taptype = SelectField('ERSPAN Type', choices=erspan, render_kw={'readonly': True})
+    tapip = StringField('Destination IP', render_kw={'readonly': True})
+    tapgateway = StringField('Gateway', render_kw={'readonly': True})
+    tapdesc = StringField('Description', render_kw={'readonly': True})
+    tapstrip = SelectField('Strip Vlan', choices=tapvlan, render_kw={'readonly': True})
+    tappacket = SelectField('Packet Size', choices=packet, render_kw={'readonly': True})
+    workloadname = StringField('Workload Filter Name', render_kw={'readonly': True})
+    workloaddesc = StringField('Filter Description', render_kw={'readonly': True})
+    worksource1 = StringField('Filter Source 1' , render_kw={'readonly': True})
+    workdest1 = StringField('Filter Destination 1 ' , render_kw={'readonly': True})
+    workprot1 = StringField('Filter Protocol 1 ' , render_kw={'readonly': True})
+    worksource2 = StringField('Filter Source 2 ' , render_kw={'readonly': True})
+    workdest2 = StringField('Filter Destination 2 ' , render_kw={'readonly': True})
+    workprot2 = StringField('Filter Protocol 2 ' , render_kw={'readonly': True})
 
 
 class DeleteAdminForm(Form):
