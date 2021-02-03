@@ -1394,7 +1394,8 @@ def adminenabletapcreate():
                             }
                             ]
                         """ % (TapPacket, TapType, TapDest, TapGateway))
-        if WorkSoure2 is None:
+        #if WorkSoure2 is None:
+        if len(WorkSoure2) < 1:
             # print("single")
             rules = ("""
                         "match-rules":[{
@@ -1904,7 +1905,8 @@ def enabletapcreate():
                             }
                             ]
                         """ % (TapPacket, TapType, TapDest, TapGateway))
-        if WorkSoure2 is None:
+        #if WorkSoure2 is None:
+        if len(WorkSoure2) < 1:
             # print("single")
             rules = ("""
                         "match-rules":[{
@@ -2233,44 +2235,49 @@ def refreshkey():
             #			print(jsonbody)
             #			print(body)
             #			print(headers)
-            req = requests.post(url, headers=headers, data=jsonbody, verify=False)
-            #			print(req.status_code)
-            if req.status_code == 200:
-                #			print(req.headers)
-                #			print(req.text)
-                #app.logger.info("Token Expired, and is now refreshed")
-                info = (req.headers)
-                #		info = (((req.json()).get('list-meta')).get('total-count'))
-                #		result = req.read()
-                #		info = req.info()
-                #			print(info)
 
-                cookiePSM = info['set-cookie']
-                #			print(cookiePSM)
-                x = cookiePSM.index(";")
-                cookiekey = cookiePSM[:x]
-                #			print(x)
-                #			print(cookiekey)
-                y = cookiePSM.index("Expires=")
+            try:
+                req = requests.post(url, headers=headers, data=jsonbody, verify=False)
+                #			print(req.status_code)
+                if req.status_code == 200:
+                    #			print(req.headers)
+                    #			print(req.text)
+                    # app.logger.info("Token Expired, and is now refreshed")
+                    info = (req.headers)
+                    #		info = (((req.json()).get('list-meta')).get('total-count'))
+                    #		result = req.read()
+                    #		info = req.info()
+                    #			print(info)
 
-                #			print(y)
-                expires = (cookiePSM[y + 8:])
-                z = expires.index(";")
-                cookieexpiry = expires[:z]
-                #			print(cookieexpiry)
+                    cookiePSM = info['set-cookie']
+                    #			print(cookiePSM)
+                    x = cookiePSM.index(";")
+                    cookiekey = cookiePSM[:x]
+                    #			print(x)
+                    #			print(cookiekey)
+                    y = cookiePSM.index("Expires=")
 
-                file = open("psm.cfg", "w")
-                file.write(
-                    f"[global]\nipman = \'{ipman}\'\nadminuser = \'{adminuser}\'\nadminpwd = \'{adminpwd}\'\ncookiekey = \'{cookiekey}\'\nexpiry = \'{cookieexpiry}\'\n")
-                file.close()
-                app.logger.warning("Token Expired, refreshed")
+                    #			print(y)
+                    expires = (cookiePSM[y + 8:])
+                    z = expires.index(";")
+                    cookieexpiry = expires[:z]
+                    #			print(cookieexpiry)
+
+                    file = open("psm.cfg", "w")
+                    file.write(
+                        f"[global]\nipman = \'{ipman}\'\nadminuser = \'{adminuser}\'\nadminpwd = \'{adminpwd}\'\ncookiekey = \'{cookiekey}\'\nexpiry = \'{cookieexpiry}\'\n")
+                    file.close()
+                    app.logger.warning("Token Expired, refreshed")
 
 
-            else:
-                '''Sleep for 12 hours before re-test'''
-                app.logger.error("Token Expired, refreshed failed")
-                time.sleep(43200)
+                elif req.status_code == 404:
+                    '''Sleep for 12 hours before re-test'''
+                    app.logger.error("Token Expired, refreshed failed")
+                    time.sleep(43200)
 
+            except requests.ConnectionError:
+                app.logger.warning('Info - No PSM accessable for Key renewal')
+                time.sleep(60)
 
         else:
             time.sleep(43200)
@@ -2361,11 +2368,13 @@ def expiryactivetaps():
 
 
                         except requests.ConnectionError:
+                            'If PSM not available wait 60 seconds and try again'
                             app.logger.warning('Info - No PSM accessable for auto Deletion')
+                            time.sleep(60)
 
                         # else:
                     cur.close()
-                    time.sleep(20)
+
                 else:
                     cur.close()
                     time.sleep(20)
@@ -2429,7 +2438,7 @@ class ChangePwd(Form):
 
 
 class AddAdminForm(Form):
-    username = StringField('Login', [validators.Length(min=1, max=50)])
+    username = StringField('Login', [validators.Regexp('^\w+$', message="Username must contain only letters numbers or underscore"),validators.Length(min=1, max=50)])
     useremail = EmailField('Email address', [validators.DataRequired(), validators.Email()])
     userpassword = PasswordField('New Password', [validators.DataRequired(),
                                                   validators.EqualTo('checkpwd', message='Passwords must match')])
@@ -2441,8 +2450,8 @@ class AddTapTargetForm(Form):
     packet = [('2048', 'Full'), ('1024', '1024'), ('512', '512'), ('256', '256'), ('128', '128'), ('64', '64')]
     # packet = [(2048, 2048), (1024, 1024), (512, 512), (256, 256), (128, 128), (64, 64)]
     tapvlan = [('Y', 'Yes'), ('N', 'No')]
-    tapname = StringField('Tap service Name', [
-        validators.Length(min=1, max=50, message="Name is required as will be used in the any Tap rules")])
+    tapname = StringField('Tap service Name', [validators.Regexp('^\w+$', message="Username must contain only letters numbers or underscore"),
+        validators.Length(min=1, max=50, message="Name is required as will be used in the any Tap rules, must contain only letters or numbers")])
     taptype = SelectField('ERSPAN Type', choices=erspan)
     tapip = StringField('Destination IP', [validators.IPAddress(ipv4=True, message="Enter a valid IP Address")])
     tapgateway = StringField('Gateway', [validators.IPAddress(ipv4=True, message="Enter a valid IP Address")])
@@ -2467,19 +2476,23 @@ class ViewTapTargetForm(Form):
 
 
 class AddWorkloadTargetForm(Form):
-    workloadname = StringField('Workload Filter Name', [
-        validators.Length(min=1, max=50, message="Name is required as will be used in the any Tap rules")])
+    workloadname = StringField('Workload Filter Name', [validators.Regexp('^\w+$', message="Username must contain only letters numbers or underscore"),
+        validators.Length(min=1, max=50, message="Name is required as will be used in the any Tap rules, must contain only letters or numbers")])
     workloaddesc = StringField('Filter Description', [validators.Length(min=1, max=50, message="Local Description")])
     worksource1 = StringField('Filter Source 1 - Option of format are (a.b.c.d/e or a.b.c.d or any)',
-                              [validators.Length(min=1, max=100, message="Format -------")])
+                              [validators.Regexp('^((([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])|(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])(?:/[0-2]\d|/3[0-2])|(any)?)$', message="IP-address or IP-address and Mask or \"any\" eg 1.1.1.1 or 1.1.1.1/32 or any"),
+                               validators.Length(min=1, max=100, message="Format -------")])
     workdest1 = StringField('Filter Destination 1 - Option of format are (a.b.c.d/e or a.b.c.d or any)',
-                            [validators.Length(min=1, max=100, message="Format -------")])
+                            [validators.Regexp('^((([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])|(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])(?:/[0-2]\d|/3[0-2])|(any)?)$', message="IP-address or IP-address and Mask or \"any\" eg 1.1.1.1 or 1.1.1.1/32 or any"),
+                             validators.Length(min=1, max=100, message="Format -------")])
     workprot1 = StringField('Filter Protocol 1 - Option of format are (icmp or any or tcp/5000-5100)',
                             [validators.Length(min=1, max=100, message="Format -------")])
     worksource2 = StringField('Filter Source 2 - Option of format are (a.b.c.d/e or a.b.c.d or any)',
-                              [validators.Length(min=0, max=100, message="Format -------")])
+                              [validators.Regexp('^((([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])|(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])(?:/[0-2]\d|/3[0-2])|(any)?)$', message="IP-address or IP-address and Mask or \"any\" eg 1.1.1.1 or 1.1.1.1/32 or any"),
+                               validators.Length(min=0, max=100, message="Format -------")])
     workdest2 = StringField('Filter Destination 2 - Option of format are (a.b.c.d/e or a.b.c.d or any)',
-                            [validators.Length(min=0, max=100, message="Format -------")])
+                            [validators.Regexp('^((([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])|(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])(?:/[0-2]\d|/3[0-2])|(any)?)$', message="IP-address or IP-address and Mask or \"any\" eg 1.1.1.1 or 1.1.1.1/32 or any"),
+                             validators.Length(min=0, max=100, message="Format -------")])
     workprot2 = StringField('Filter Protocol 2 - Option of format are (22 or 22,23,24 or any)',
                             [validators.Length(min=0, max=100, message="Format -------")])
 
@@ -2488,15 +2501,19 @@ class ViewWorkloadTargetForm(Form):
     workloadname = StringField('Workload Filter Name', render_kw={'readonly': True})
     workloaddesc = StringField('Filter Description', [validators.Length(min=1, max=50, message="Local Description")])
     worksource1 = StringField('Filter Source 1 - Option of format are (a.b.c.d/e or a.b.c.d or any)',
-                              [validators.Length(min=1, max=100, message="Format -------")])
+                              [validators.Regexp('^((([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])|(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])(?:/[0-2]\d|/3[0-2])|(any)?)$', message="IP-address or IP-address and Mask or \"any\" eg 1.1.1.1 or 1.1.1.1/32 or any"),
+                               validators.Length(min=1, max=100, message="Format -------")])
     workdest1 = StringField('Filter Destination 1 - Option of format are (a.b.c.d/e or a.b.c.d or any)',
-                            [validators.Length(min=1, max=100, message="Format -------")])
+                            [validators.Regexp('^((([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])|(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])(?:/[0-2]\d|/3[0-2])|(any)?)$', message="IP-address or IP-address and Mask or \"any\" eg 1.1.1.1 or 1.1.1.1/32 or any"),
+                             validators.Length(min=1, max=100, message="Format -------")])
     workprot1 = StringField('Filter Protocol 1 - Option of format are (icmp or any or tcp/5000-5100)',
                             [validators.Length(min=1, max=100, message="Format -------")])
     worksource2 = StringField('Filter Source 2 - Option of format are (a.b.c.d/e or a.b.c.d or any)',
-                              [validators.Length(min=0, max=100, message="Format -------")])
+                              [validators.Regexp('^((([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])|(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])(?:/[0-2]\d|/3[0-2])|(any)?)$', message="IP-address or IP-address and Mask or \"any\" eg 1.1.1.1 or 1.1.1.1/32 or any"),
+                               validators.Length(min=0, max=100, message="Format -------")])
     workdest2 = StringField('Filter Destination 2 - Option of format are (a.b.c.d/e or a.b.c.d or any)',
-                            [validators.Length(min=0, max=100, message="Format -------")])
+                            [validators.Regexp('^((([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])|(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])(?:/[0-2]\d|/3[0-2])|(any)?)$', message="IP-address or IP-address and Mask or \"any\" eg 1.1.1.1 or 1.1.1.1/32 or any"),
+                             validators.Length(min=0, max=100, message="Format -------")])
     workprot2 = StringField('Filter Protocol 2 - Option of format are (22 or 22,23,24 or any)',
                             [validators.Length(min=0, max=100, message="Format -------")])
 
