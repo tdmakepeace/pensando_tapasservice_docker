@@ -1,3 +1,52 @@
+# Copyright (c) 2020, Pensando Systems
+#
+# Permission to use, copy, modify, and/or distribute this software for any
+# purpose with or without fee is hereby granted, provided that the above
+# copyright notice and this permission notice appear in all copies.
+#
+# THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+# WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+# MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
+# ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+# WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
+# ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
+# OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+# Author: Toby Makepeace <toby@pensando.io>
+
+"""
+Pensando Systems Tap As A Server
+The tool is just to provide a demo of the capabilities of building
+Tap as a Service for the network/compute consumers/business units.
+|Instructions/Usage statement including parameters|
+This software is provided without support, warranty, or guarantee. Use at your own risk.
+"""
+
+''' A one-line docstring '''
+# TODO: Write some code after this block comment
+# FIXME: What needs to be fixes
+# NOTE: a simple refernce note.
+
+"""	
+A multiline docstring. 	
+Keyword arguments: 	
+parameter -- an example parameter (default False) 	
+"""
+
+"""	
+Each section of web code needs to validate the loggedin session cookie. 	
+example:	
+    if 'loggedin' in session:	
+        <then>	
+    return redirect(url_for('login'))	
+if you need to do a admin password reset from to get the output needed to be loaded in the DB	
+from a python console. 	
+> password1 = generate_password_hash('Pensando0$')	
+> print password1	
+from werkzeug.security import generate_password_hash, check_password_hash	
+print(generate_password_hash('test'))	
+"""
+
+
 # TODO: The threading and time options will be needed when i create the background jobs.
 import threading
 import time
@@ -1746,6 +1795,56 @@ def viewactivetap(id):
         cur.close()
         return render_template('viewactivetap.html', form=form)
     return redirect(url_for('home'))
+
+@app.route("/adminviewactivetap/<string:id>/", methods=['GET'])
+def adminviewactivetap(id):
+    if 'loggedin' in session:
+        cur = conn.cursor()
+
+        cur.execute(
+            " SELECT TapName  FROM `ActiveTaps` where UID = %s;",
+            [id])
+        results = cur.fetchone()
+        tapworkloadname = results[0]
+        x = tapworkloadname.index("-")
+        tapname = tapworkloadname[:x]
+        workloadname = tapworkloadname[x+1:]
+        #print(tapname)
+        #print(workloadname)
+
+        cur.execute(
+            " SELECT uid, name, type, inet_NTOA(IPaddr) as dest,inet_NTOA(Gateway) as gate , Description, StripVlan, PacketSize   FROM `Taps` where name = %s;",
+            tapname)
+        results1 = cur.fetchone()
+
+        cur.execute(
+            " SELECT UID, Name, Description , Source1, Destin1, Prot1, Source2, Destin2, Prot2 FROM `Workloads` where name = %s;",
+            workloadname)
+        results2 = cur.fetchone()
+
+        form = ViewUserTapTargetForm(request.form)
+
+        if request.method == 'GET':
+            form.tapname.data = results1[1]
+            form.taptype.data = results1[2]
+            form.tapip.data = results1[3]
+            form.tapgateway.data = results1[4]
+            form.tapdesc.data = results1[5]
+            form.tapstrip.data = results1[6]
+            form.tappacket.data = str(results1[7])
+            form.workloadname.data = results2[1]
+            form.workloaddesc.data = results2[2]
+            form.worksource1.data = results2[3]
+            form.workdest1.data = results2[4]
+            form.workprot1.data = results2[5]
+            form.worksource2.data = results2[6]
+            form.workdest2.data = results2[7]
+            form.workprot2.data = results2[8]
+
+        cur.close()
+        return render_template('adminviewactivetap.html', form=form)
+    return redirect(url_for('home'))
+
 
 
 @app.route("/enabletap")
