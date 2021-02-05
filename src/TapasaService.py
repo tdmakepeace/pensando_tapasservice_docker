@@ -1,4 +1,3 @@
-
 # Copyright (c) 2020, Pensando Systems
 #
 # Permission to use, copy, modify, and/or distribute this software for any
@@ -46,8 +45,6 @@ from a python console.
 from werkzeug.security import generate_password_hash, check_password_hash	
 print(generate_password_hash('test'))	
 """
-
-
 
 
 # TODO: The threading and time options will be needed when i create the background jobs.
@@ -1446,10 +1443,7 @@ def adminenabletapcreate():
                             }
                             ]
                         """ % (TapPacket, TapType, TapDest, TapGateway))
-
-        #if WorkSoure2 is None:
-        if len(WorkSoure2) < 1:
-
+        if WorkSoure2 is None or len(WorkSoure2) < 1 :
             # print("single")
             rules = ("""
                         "match-rules":[{
@@ -1848,7 +1842,7 @@ def adminviewactivetap(id):
 
         cur.close()
         return render_template('adminviewactivetap.html', form=form)
-
+    return redirect(url_for('home'))
 
 
 
@@ -2009,10 +2003,7 @@ def enabletapcreate():
                             }
                             ]
                         """ % (TapPacket, TapType, TapDest, TapGateway))
-
-        #if WorkSoure2 is None:
-        if len(WorkSoure2) < 1:
-
+        if WorkSoure2 is None or len(WorkSoure2) < 1 :
             # print("single")
             rules = ("""
                         "match-rules":[{
@@ -2303,9 +2294,7 @@ def initBackgroundProcs():
         file = open("psm.cfg")
         file.close()
     except IOError:
-
         #app.logger.info("After a upgrade a new psm.cfg need to be built and a few DB Connections might fail to restarts.")
-
         # time.sleep(10)
         file = open("psm.cfg", "w")
         file.write(
@@ -2343,7 +2332,6 @@ def refreshkey():
             #			print(jsonbody)
             #			print(body)
             #			print(headers)
-
 
             try:
                 req = requests.post(url, headers=headers, data=jsonbody, verify=False)
@@ -2387,6 +2375,7 @@ def refreshkey():
             except requests.ConnectionError:
                 app.logger.warning('Info - No PSM accessable for Key renewal')
                 time.sleep(60)
+
         else:
             time.sleep(43200)
 
@@ -2510,7 +2499,6 @@ def cleanauditlog():
                 time.sleep(2)
                 conn = pymysql.connect(host=host, port=port, user=user, passwd=passwd, db=db)
         except pymysql.err.OperationalError as e:
-
             app.logger.error(f"Background DBdown: {e}")
             conn = pymysql.connect(host=host, port=port, user=user, passwd=passwd, db=db)
             time.sleep(2)
@@ -2519,7 +2507,6 @@ def cleanauditlog():
             conn = pymysql.connect(host=host, port=port, user=user, passwd=passwd, db=db)
 
         cur = conn.cursor()
-
         try:
             cleanstate = (
                          "delete from TapsAudit where TransTime < (date_sub(now(), interval %s day));") % (auditlog)
@@ -2647,7 +2634,6 @@ class ViewUserTapTargetForm(Form):
     worksource2 = StringField('Filter Source 2 ' , render_kw={'readonly': True})
     workdest2 = StringField('Filter Destination 2 ' , render_kw={'readonly': True})
     workprot2 = StringField('Filter Protocol 2 ' , render_kw={'readonly': True})
-
 
 class DeleteAdminForm(Form):
     id = IntegerField('id', render_kw={'readonly': True})
