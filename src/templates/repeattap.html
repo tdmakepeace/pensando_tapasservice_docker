@@ -1,0 +1,57 @@
+{% extends 'layout.html' %}
+
+{% block body %}
+<div class='jumbotron text-center'>
+      <h1>Enable Taps / Workload<br></h1><br>
+</div>
+
+
+
+<form action="/enabletapcreate/">
+	 <table class="table table-striped">
+         <tr>
+             <th>TAP Destination</th>
+             <th>Workload Filter</th>
+			 <th>Duration</th>
+             <th></th>
+         </tr>
+
+          <tr>
+             <th>
+
+			 {% for id, tap  in results %}
+                 <input type="text" id="TapDest" name=TapDest value={{tap}} readonly disabled >
+                 <input type="hidden" id="TapDest" name=TapDest value={{id}}>
+			  {% endfor %}
+			 </th>
+             <th>
+			 {% for id, workload in results2 %}
+                 <input type="text" id="WorkDest" name=WorkDest value={{workload}} readonly disabled >
+                 <input type="hidden" id="WorkDest" name=WorkDest value={{id}}>
+			{% endfor %}
+			 </th>
+			<th>
+			<select name="Duration"  width="20">
+				<option value=1>1 Minute</option>
+				<option value=5>5 Minutes</option>
+				<option value=10>10 Minutes</option>
+				<option value=30>30 Minutes</option>
+				<option value=60>1 hour</option>
+				<option value=120>2 hour</option>
+                <option value="240">4 hour</option>
+                <option value="480">8 hour</option>
+                <option value="720">12 hour</option>
+                <option value="1440">24 hour</option>
+                <option value="2880">48 hour</option>
+			</select>
+			 </th>
+           </tr>
+
+     </table>
+
+   <button class="btn btn-danger">Enable</button>
+
+</form>
+
+
+{% endblock %}

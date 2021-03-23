@@ -16,6 +16,7 @@
              <th></th>
 			 <th></th>
 			 <th></th>
+             <th></th>
          </tr>
          {% for id, username, email, updatedate  in results %}
           <tr>
@@ -25,6 +26,7 @@
              <th><a href="assigntaps/{{id}}" class="btn btn-success">Assigned Tap</a></th>
 			 <th><a href="assignworkload/{{id}}" class="btn btn-success">Assigned Workload</a></th>
 			 <th><a href="deleteuser/{{id}}" class="btn btn-danger">Delete</a></th>
+              <th><a href="resetuserpassword/{{id}}" class="btn btn-danger">Rst Password</a></th>
           </tr>
          {% endfor %}
                   

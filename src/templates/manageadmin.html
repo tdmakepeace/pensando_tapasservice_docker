@@ -14,6 +14,8 @@
              <th>Email Address</th>
              <th>Last Update</th>
              <th></th>
+             <th></th>
+
          </tr>
          {% for id, username, email, updatedate  in results %}
           <tr>
@@ -21,6 +23,7 @@
              <th>{{email}}</th>
              <th>{{updatedate}}</th>
              <th><a href="deleteadmin/{{id}}" class="btn btn-danger">Delete</a></th>
+              <th><a href="resetadminpassword/{{id}}" class="btn btn-danger">Rst Password</a></th>
           </tr>
          {% endfor %}
                   
