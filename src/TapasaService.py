@@ -2945,9 +2945,11 @@ class apitapasname(Resource):
             return {'status': 'PSM not setup'}
         cur = conn.cursor()
         cur.execute(" select uid from Taps where Name = %s;", TapDestName)
-        TapDestId = cur.fetchone()
+        result = cur.fetchone()
+        TapDestId = result[0]
         cur.execute(" select uid from Workloads where Name = %s;", WorkDestName)
-        WorkDestId = cur.fetchone()
+        result = cur.fetchone()
+        WorkDestId = result[0]
         cur.close()
 
         response = createtapapi(TapDestId, WorkDestId, Tapowner, ipman, cookiekey, username, Duration)
@@ -2971,9 +2973,11 @@ class apitapasname(Resource):
             return {'status': 'PSM not setup'}
         cur = conn.cursor()
         cur.execute(" select uid from Taps where Name = %s;", TapDestName)
-        TapDestId = cur.fetchone()
+        result = cur.fetchone()
+        TapDestId = result[0]
         cur.execute(" select uid from Workloads where Name = %s;", WorkDestName)
-        WorkDestId = cur.fetchone()
+        result = cur.fetchone()
+        WorkDestId = result[0]
         cur.close()
         response = deletetapapi(TapDestId, WorkDestId, Tapowner, ipman, cookiekey, username, Duration)
         return response
@@ -3013,10 +3017,13 @@ class apitapasname(Resource):
         else:
             cur = conn.cursor()
             cur.execute(" select uid from Taps where Name = %s;", TapDestName)
-            TapDestId = cur.fetchone()
+            result = cur.fetchone()
+            TapDestId = result[0]
             cur.execute(" select uid from Workloads where Name = %s;", WorkDestName)
-            WorkDestId = cur.fetchone()
+            result = cur.fetchone()
+            WorkDestId = result[0]
             cur.close()
+
 
             response = createtapapi(TapDestId, WorkDestId, Tapowner, ipman, cookiekey, username, Duration)
             return response
