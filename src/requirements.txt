@@ -1,5 +1,7 @@
-Flask~=1.1.2
-requests~=2.25.1
-PyMySQL~=0.10.1
-WTForms~=2.2.1
+Flask>=2.2.5
+requests==2.25.1
+PyMySQL==0.10.1
+WTForms==2.2.1
 Werkzeug~=2.2.3
+Flask_restful==0.3.8
+

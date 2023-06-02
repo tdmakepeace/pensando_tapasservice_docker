@@ -1,33 +1,31 @@
-{% extends 'adminlayout.html' %}
+{% extends 'layout.html' %}
 
 {% block body %}
 <div class='jumbotron text-center'>
-
-      <h1>Taps audit for the last {{auditlog}} days<br></h1><br>
+      <h1>Taps audit for the last {{auditlog}}  days<br></h1><br>
 </div>
 
      <hr>
 
 	 <table class="table table-striped">
          <tr>
-             <th>User Created</th>
+
              <th>Tap Destination</th>
              <th>Workload Filter</th>
              <th>Created</th>
              <th>Removed</th>
              <th>Removed By</th>
              <th></th>
-
          </tr>
          {% for uid, TransTime, UserId, AdminId, UserName, TapUID, TapName, WorkloadUID, WorkloadName, TapCreated, TapDeleted, DeletedBy, TapActiveId  in results %}
           <tr>
-             <th>{{UserName}}</th>
+
              <th>{{TapName}}</th>
 			 <th>{{WorkloadName}}</th>
               <th>{{TapCreated}}</th>
               <th>{{TapDeleted}}</th>
               <th>{{DeletedBy}}</th>
-              <th><a href="/adminrepeattap/?tapid={{TapUID}}&workloadid={{WorkloadUID}}" class="btn btn-info">Repeat</a></th>
+                <th><a href="/repeattap/?tapid={{TapUID}}&workloadid={{WorkloadUID}}" class="btn btn-info">Repeat</a></th>
           </tr>
          {% endfor %}
 

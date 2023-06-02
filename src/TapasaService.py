@@ -63,6 +63,8 @@ from wtforms import Form, StringField, IntegerField, PasswordField, BooleanField
 from wtforms.fields.html5 import EmailField
 from werkzeug.security import generate_password_hash, check_password_hash
 from configparser import ConfigParser
+from flask_restful import Resource, Api
+
 
 # sys.path.append("/app/PenTapasaService")
 
@@ -132,7 +134,7 @@ app.config['SESSION_TYPE'] = 'filesystem'
 app.config['SECRET_KEY'] = 'PensandoTapAsAService'
 app.config['SESSION_REFRESH_EACH_REQUEST'] = True
 app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(minutes=webtimeout)
-
+api = Api(app)
 
 # conn = pymysql.connect(host=host, port=port, user=user, passwd=passwd, db=db)
 
@@ -539,6 +541,74 @@ def manageusers():
 
     return redirect(url_for('adminlogin'))
 
+
+@app.route("/resetuserpassword/<string:id>/", methods=['GET', 'POST'])
+def resetuserpassword(id):
+    if 'loggedin' in session and session['admin'] == True:
+        cur = conn.cursor()
+        cur.execute(" SELECT id, `username`,`email` FROM `UserAccounts` where id = %s;", [id])
+        results = cur.fetchone()
+
+        form = ResetUserPassForm(request.form)
+        form.username.data = results[1]
+        cur.close()
+        if request.method == 'POST' and form.validate():
+            username = form.username.data
+            userpassword = form.userpassword.data
+            passworduser = generate_password_hash(userpassword)
+
+            ## cursor ##
+            cur = conn.cursor()
+            cur.execute(
+                " update `UserAccounts`  set `password` = %s where id = %s ; ",
+                ( passworduser,[id]))
+
+            ## commit and close ##
+            conn.commit()
+            cur.close()
+            app.logger.warning(
+                f"Info - The User account: {username} password has been updated")
+
+            flash('Password updated', 'success')
+            return redirect(url_for('manageusers'))
+
+        #        return render_template('adduser.html')
+        return render_template('resetuserpassword.html', form=form)
+    return redirect(url_for('adminlogin'))
+
+@app.route("/resetadminpassword/<string:id>/", methods=['GET', 'POST'])
+def resetadminpassword(id):
+    if 'loggedin' in session and session['admin'] == True:
+        cur = conn.cursor()
+        cur.execute(" SELECT id, `username`,`email` FROM `AdminAccounts` where id = %s;", [id])
+        results = cur.fetchone()
+
+        form = ResetUserPassForm(request.form)
+        form.username.data = results[1]
+        cur.close()
+        if request.method == 'POST' and form.validate():
+            username = form.username.data
+            userpassword = form.userpassword.data
+            passworduser = generate_password_hash(userpassword)
+
+            ## cursor ##
+            cur = conn.cursor()
+            cur.execute(
+                " update `AdminAccounts`  set `password` = %s where id = %s ; ",
+                ( passworduser,[id]))
+
+            ## commit and close ##
+            conn.commit()
+            cur.close()
+            app.logger.warning(
+                f"Info - The Admin User account: {username} password has been updated")
+
+            flash('Password updated', 'success')
+            return redirect(url_for('manageadmin'))
+
+        #        return render_template('adduser.html')
+        return render_template('resetadminpassword.html', form=form)
+    return redirect(url_for('adminlogin'))
 
 """
 ADMIN MANAGER SECTION
@@ -1535,7 +1605,7 @@ def adminenabletapcreate():
                          "insert into TapsAudit (AdminId, UserName, TapUID, TapName, WorkloadUID,"
                          " WorkloadName, TapCreated, TapActiveID) values(%s, '%s',"
                          "%s,'%s',%s,'%s',now(),%s);") % (
-                     userid, username, WorkDestId, TapName, WorkDestId, WorkName, TapId)
+                     userid, username, TapDestId, TapName, WorkDestId, WorkName, TapId)
             cur6.execute(state6)
             app.logger.warning(f'Info - The TAP Destination: {TapName} with Filter: {WorkName} was Added to the system by Admin: {username}')
 
@@ -1687,7 +1757,7 @@ def admintapaudit():
         results = cur.fetchall()
         if result > 0:
             cur.close()
-            return render_template('admintapaudit.html', results=results)
+            return render_template('admintapaudit.html', results=results, auditlog=auditlog)
         else:
             msg = 'No Active Taps registered'
             flash(msg, 'warning')
@@ -1695,6 +1765,47 @@ def admintapaudit():
             return render_template('admintapaudit.html', msg=msg)
 
     return redirect(url_for('adminlogin'))
+
+
+@app.route("/tapaudit")
+def tapaudit():
+    if 'loggedin' in session and session['admin'] == False:
+        ipman = getVar('ipman')[1:-1]
+        cookiekey = getVar('cookiekey')[1:-1]
+
+        if len(cookiekey) == 0:
+            return redirect(url_for('psmsetup'))
+
+        url = ('https://%s/configs/monitoring/v1/tenant/default/MirrorSession' % (ipman))
+        headers = ({'Content-Type': 'application/json', 'cookie': cookiekey})
+        try:
+            req = requests.get(url, headers=headers, verify=False)
+        except requests.ConnectionError:
+            msg = 'No PSM accessible'
+            flash(msg, 'warning')
+            return redirect(url_for('home'))
+        # handle ConnectionError the exception
+
+        ''' print the number of taps'''
+        flash(f"The number of taps configure on PSM = {(((req.json()).get('list-meta')).get('total-count'))}\n", 'info')
+
+        cur = conn.cursor()
+
+        result = cur.execute(
+            "select uid, TransTime, UserId, AdminId, UserName, TapUID, TapName, WorkloadUID, WorkloadName, TapCreated,"
+            " TapDeleted, DeletedBy, TapActiveId from TapsAudit where UserId  = %s order by TransTime desc;",  [session['id']])
+
+        results = cur.fetchall()
+        if result > 0:
+            cur.close()
+            return render_template('tapaudit.html', results=results, auditlog=auditlog)
+        else:
+            msg = 'No Active Taps registered'
+            flash(msg, 'warning')
+            cur.close()
+            return render_template('tapaudit.html', msg=msg)
+
+    return redirect(url_for('login'))
 
 
 """
@@ -1751,16 +1862,22 @@ def viewactivetap(id):
     if 'loggedin' in session:
         cur = conn.cursor()
 
-        cur.execute(
+
+
+        result = cur.execute(
             " SELECT TapName  FROM `ActiveTaps` where UID = %s;",
             [id])
-        results = cur.fetchone()
-        tapworkloadname = results[0]
-        x = tapworkloadname.index("-")
-        tapname = tapworkloadname[:x]
-        workloadname = tapworkloadname[x+1:]
-        #print(tapname)
-        #print(workloadname)
+        if result > 0:
+            results = cur.fetchone()
+            tapworkloadname = results[0]
+            x = tapworkloadname.index("-")
+            tapname = tapworkloadname[:x]
+            workloadname = tapworkloadname[x + 1:]
+            # print(tapname)
+            # print(workloadname)
+        else:
+            flash('Tap already deleted', 'success')
+            return redirect(url_for('activetap'))
 
         cur.execute(
             " SELECT uid, name, type, inet_NTOA(IPaddr) as dest,inet_NTOA(Gateway) as gate , Description, StripVlan, PacketSize   FROM `Taps` where name = %s;",
@@ -1797,19 +1914,23 @@ def viewactivetap(id):
 
 @app.route("/adminviewactivetap/<string:id>/", methods=['GET'])
 def adminviewactivetap(id):
-    if 'loggedin' in session:
+    if 'loggedin' in session and session['admin'] == True:
         cur = conn.cursor()
 
-        cur.execute(
+        result = cur.execute(
             " SELECT TapName  FROM `ActiveTaps` where UID = %s;",
             [id])
-        results = cur.fetchone()
-        tapworkloadname = results[0]
-        x = tapworkloadname.index("-")
-        tapname = tapworkloadname[:x]
-        workloadname = tapworkloadname[x+1:]
-        #print(tapname)
-        #print(workloadname)
+        if result > 0:
+            results = cur.fetchone()
+            tapworkloadname = results[0]
+            x = tapworkloadname.index("-")
+            tapname = tapworkloadname[:x]
+            workloadname = tapworkloadname[x + 1:]
+            # print(tapname)
+            # print(workloadname)
+        else:
+            flash('Tap already deleted', 'success')
+            return redirect(url_for('adminactivetap'))
 
         cur.execute(
             " SELECT uid, name, type, inet_NTOA(IPaddr) as dest,inet_NTOA(Gateway) as gate , Description, StripVlan, PacketSize   FROM `Taps` where name = %s;",
@@ -1907,6 +2028,98 @@ def enabletap():
             return redirect(url_for('home'))
 
     return redirect(url_for('home'))
+
+@app.route("/repeattap/", methods=['GET', 'POST'])
+def repeattap():
+    if 'loggedin' in session:
+        ipman = getVar('ipman')[1:-1]
+        cookiekey = getVar('cookiekey')[1:-1]
+        TapDestId = request.args.get('tapid', None)
+        WorkDestId = request.args.get('workloadid', None)
+        if len(cookiekey) == 0:
+            print('empty String')
+            return redirect(url_for('psmsetup'))
+
+        url = ('https://%s/configs/monitoring/v1/tenant/default/MirrorSession' % (ipman))
+        headers = ({'Content-Type': 'application/json', 'cookie': cookiekey})
+
+        try:
+            req = requests.get(url, headers=headers, verify=False)
+        except requests.ConnectionError:
+            msg = 'No PSM accessable'
+            flash(msg, 'warning')
+            return redirect(url_for('home'))
+
+        tapcount = (((req.json()).get('list-meta')).get('total-count'))
+        if tapcount is None:
+            tapcount = 0
+
+        if tapcount >= 8:
+            flash('Max Taps configured on PSM', 'success')
+            return redirect(url_for('activetap'))
+
+        ''' Import the content for the drop downs'''
+        cur = conn.cursor()
+        result = cur.execute("select uid, name as tap from Taps where UID = %s", TapDestId)
+        results = cur.fetchall()
+        result2 = cur.execute("select uid, name as workload from Workloads where UID =%s", WorkDestId )
+        results2 = cur.fetchall()
+        if result > 0 and result2 > 0:
+            cur.close()
+            return render_template('repeattap.html', results=results, results2=results2)
+        else:
+            msg = 'Either no Taps or Workloads Configured'
+            flash(msg, 'warning')
+            cur.close()
+            return redirect(url_for('home'))
+
+    return redirect(url_for('home'))
+
+@app.route("/adminrepeattap/", methods=['GET', 'POST'])
+def adminrepeattap():
+    if 'loggedin' in session and session['admin'] == True:
+        ipman = getVar('ipman')[1:-1]
+        cookiekey = getVar('cookiekey')[1:-1]
+        TapDestId = request.args.get('tapid', None)
+        WorkDestId = request.args.get('workloadid', None)
+        if len(cookiekey) == 0:
+            print('empty String')
+            return redirect(url_for('psmsetup'))
+
+        url = ('https://%s/configs/monitoring/v1/tenant/default/MirrorSession' % (ipman))
+        headers = ({'Content-Type': 'application/json', 'cookie': cookiekey})
+
+        try:
+            req = requests.get(url, headers=headers, verify=False)
+        except requests.ConnectionError:
+            msg = 'No PSM accessable'
+            flash(msg, 'warning')
+            return redirect(url_for('adminhome'))
+
+        tapcount = (((req.json()).get('list-meta')).get('total-count'))
+        if tapcount is None:
+            tapcount = 0
+
+        if tapcount >= 8:
+            flash('Max Taps configured on PSM', 'success')
+            return redirect(url_for('adminactivetap'))
+
+        ''' Import the content for the drop downs'''
+        cur = conn.cursor()
+        result = cur.execute("select uid, name as tap from Taps where UID = %s", TapDestId)
+        results = cur.fetchall()
+        result2 = cur.execute("select uid, name as workload from Workloads where UID =%s", WorkDestId )
+        results2 = cur.fetchall()
+        if result > 0 and result2 > 0:
+            cur.close()
+            return render_template('adminrepeattap.html', results=results, results2=results2)
+        else:
+            msg = 'Either no Taps or Workloads Configured'
+            flash(msg, 'warning')
+            cur.close()
+            return redirect(url_for('adminhome'))
+
+    return redirect(url_for('adminhome'))
 
 
 @app.route("/enabletapcreate/", methods=['GET', 'POST'])
@@ -2095,7 +2308,7 @@ def enabletapcreate():
                          "insert into TapsAudit (UserId, UserName, TapUID, TapName, WorkloadUID,"
                          " WorkloadName, TapCreated, TapActiveID) values(%s, '%s',"
                          "%s,'%s',%s,'%s',now(),%s);") % (
-                     userid, username, WorkDestId, TapName, WorkDestId, WorkName, TapId)
+                     userid, username, TapDestId, TapName, WorkDestId, WorkName, TapId)
             cur6.execute(state6)
             app.logger.warning(
                 f'Info - The TAP Destination: {TapName} with Filter: {WorkName} was Added to the system by User: {username}')
@@ -2264,6 +2477,561 @@ def adminhome():
 
     # User is not loggedin redirect to login page
     return redirect(url_for('login'))
+
+
+# todo: API section testing.
+"""
+Example code to use restful structure for greenlake example.
+
+Add "Flask_restful"  to requirements. 
+add "from flask_restful import Resource, Api" To import
+
+curl "http://127.0.0.1:5000/api/tapasid/?TapDest=1&WorkDest=1&Duration=1" \
+  -X POST \
+  -d "{\n  \"username\": \"user1\",\n  \"password\": \"test\"\n}" \
+  -H "Content-Type: application/json" 
+
+curl "http://127.0.0.1:5000/api/tapasid/?TapDest=1&WorkDest=1&Duration=1" \
+  -X DELETE \
+  -d "{\n  \"username\": \"toby\",\n  \"password\": \"test\"\n}" \
+  -H "Content-Type: application/json" 
+
+curl "http://127.0.0.1:5000/api/tapasname/?TapDestName=TobyLab&WorkDestName=LABServer&Duration=1" \
+  -X POST \
+  -d "{\n  \"username\": \"user1\",\n  \"password\": \"test\"\n}" \
+  -H "Content-Type: application/json" 
+
+curl "http://127.0.0.1:5000/api/tapasname/?TapDestName=TobyLab&WorkDestName=LABServer&Duration=1" \
+  -X DELETE \
+  -d "{\n  \"username\": \"toby\",\n  \"password\": \"test\"\n}" \
+  -H "Content-Type: application/json" 
+
+"""
+
+
+def apivalidate(username, passid):
+    ''' Note: this is for the API to validate the username and password provided in the request'''
+    cur = conn.cursor()
+    cur.execute('SELECT * FROM UserAccounts WHERE username = %s;', username)
+    # Fetch one record and return result
+    account = cur.fetchone()
+    cur.close()
+    # If account exists in accounts table in out database
+    #        if account:
+    if account is None:
+        return '0'
+    if check_password_hash(account[2], passid) is True:
+        return account[0]
+    else:
+        return '0'
+
+
+def targetvalidate(TapDestId, Tapowner):
+    ''' Note: this is for the API to validate the username is authorized to use the tap destination'''
+    cur = conn.cursor()
+    cur.execute("Select ifnull(uid, '0')  from TapOwner where TapUID=%s and OwnerUID=%s;", (TapDestId, Tapowner))
+    validatetap = cur.fetchone()
+    cur.close()
+    if validatetap is None:
+        # print('failed_auth_tap')
+        return validatetap
+    else:
+        resultstap = targetretrieve(TapDestId)
+        return resultstap
+
+
+def targetretrieve(TapDestId):
+    ''' Note: retrieve the tap target configuration '''
+    cur = conn.cursor()
+    cur.execute(
+        " select Name, Type, INET_NTOA(IPaddr), INET_NTOA(Gateway), StripVlan, PacketSize from "
+        "Taps where UID =%s;",
+        TapDestId)
+    resultstap = cur.fetchone()
+    # print(resultstap)
+    cur.close()
+    return resultstap
+
+
+def workloadvalidate(WorkDestId, Tapowner):
+    ''' Note: this is for the API to validate the username is authorized to use the workload filter'''
+    cur = conn.cursor()
+    cur.execute("Select ifnull(uid, '0')  from WorkloadOwner where WorkloadUID=%s and OwnerUID=%s;",
+                (WorkDestId, Tapowner))
+    validatetap = cur.fetchone()
+    cur.close()
+    if validatetap is None:
+        # print('failed_auth_worklaod')
+        return validatetap
+    else:
+        resultswork = workloadretrieve(WorkDestId)
+        return resultswork
+
+
+def workloadretrieve(WorkDestId):
+    ''' Note: retrieve the workload filter configuration '''
+    cur = conn.cursor()
+    cur.execute(
+        " select Name, Source1,Destin1,Prot1, Source2,Destin2,Prot2 from Workloads where uid=%s;",
+        WorkDestId)
+    resultswork = cur.fetchone()
+    # print(resultstap)
+    cur.close()
+    return resultswork
+
+
+def createtapapi(TapDestId, WorkDestId, Tapowner, ipman, cookiekey, username, Duration):
+    ## TAP auth and retrieve ##
+    resultstap = targetvalidate(TapDestId, Tapowner)
+    if resultstap is None:
+        return {'status': 'failed Authorization For tool destination', 'Duration': Duration, 'TapDestId': TapDestId,
+                'WorkDestId': WorkDestId}
+
+    TapName = resultstap[0]
+    TapType = resultstap[1]
+    TapDest = resultstap[2]
+    TapGateway = resultstap[3]
+    TapStrip = resultstap[4]
+    TapPacket = resultstap[5]
+
+    resultswork = workloadvalidate(WorkDestId, Tapowner)
+    if resultswork is None:
+        return {'status': 'failed Authorization for workload filter', 'Duration': Duration, 'TapDestId': TapDestId,
+                'WorkDestId': WorkDestId}
+
+    WorkName = resultswork[0]
+    WorkSoure1 = resultswork[1]
+    WorkDest1 = resultswork[2]
+    WorkPro1 = resultswork[3]
+    WorkSoure2 = resultswork[4]
+    WorkDest2 = resultswork[5]
+    WorkPro2 = resultswork[6]
+
+    MirrorName = (TapName + '-' + WorkName)
+
+    cur3 = conn.cursor()
+    state3 = (
+                 "insert into ActiveTaps (TapName, TapExpiry, TapOwner)"
+                 "Values ('%s',(date_add(now(),INTERVAL %s minute)), %s);") % (
+                 MirrorName, Duration, Tapowner)
+    cur3.execute(state3)
+    conn.commit()
+    cur3.close()
+    cur4 = conn.cursor()
+    state4 = ("select uid , TapExpiry from ActiveTaps where TapName='%s';") % (MirrorName)
+    cur4.execute(state4)
+    results4 = cur4.fetchone()
+    TapId = int(results4[0])
+    cur4.close()
+
+    url = ('https://%s/configs/monitoring/v1/tenant/default/MirrorSession' % ipman)
+    headers = ({'Content-Type': 'application/json', 'cookie': cookiekey})
+
+    # TODO: Need to work on the build array logic.
+    # print(TapStrip)
+    header = ("""
+                            "meta":{"name":"%s"}
+                            """ % (MirrorName))
+
+    if TapStrip == 'Yes':
+        collector = ("""
+                        "spec":{"packet-size":%s, 
+                        "collectors":[
+                            {"type":"%s",
+                            "export-config":{
+                                "destination":"%s",
+                                "gateway":"%s"
+                                },
+                            "strip-vlan-hdr": true}
+                            ]
+                        """ % (TapPacket, TapType, TapDest, TapGateway))
+    else:
+        collector = ("""
+                        "spec":{"packet-size":%s, 
+                        "collectors":[
+                            {"type":"%s",
+                            "export-config":{
+                                "destination":"%s",
+                                "gateway":"%s"
+                                }
+                            }
+                            ]
+                        """ % (TapPacket, TapType, TapDest, TapGateway))
+    if WorkSoure2 is None or len(WorkSoure2) < 1:
+        # print("single")
+        rules = ("""
+                        "match-rules":[{
+                            "source":{
+                                "ip-addresses":[
+                                    "%s"
+                                ]
+                            },
+                            "destination":{
+                                "ip-addresses":[
+                                    "%s"
+                                ]
+                            },
+                            "app-protocol-selectors":{
+                                "proto-ports":[
+                                    "%s"
+                                ]
+                            }
+                        }]
+                        """ % (WorkSoure1, WorkDest1, WorkPro1))
+    else:
+        # print("double")
+        rules = ("""
+                        "match-rules":[{
+                            "source":{
+                                "ip-addresses":[
+                                    "%s"
+                                ]
+                            },
+                            "destination":{
+                                "ip-addresses":[
+                                    "%s"
+                                ]
+                            },
+                            "app-protocol-selectors":{
+                                "proto-ports":[
+                                    "%s"
+                                ]
+                            }
+                        },
+                            {
+                            "source":{
+                                "ip-addresses":[
+                                    "%s"
+                                ]
+                            },
+                            "destination":{
+                                "ip-addresses":[
+                                    "%s"
+                                ]
+                            },
+                            "app-protocol-selectors":{
+                                "proto-ports":[
+                                    "%s"
+                                ]
+                            }
+                        }
+                        ]
+                        """ % (WorkSoure1, WorkDest1, WorkPro1, WorkSoure2, WorkDest2, WorkPro2))
+
+    spanid = ("""
+                    "packet-filters": [
+                        "all-packets"
+                    ],
+                    "span-id": %s
+                    }
+                """ % (TapId))
+    body = ("""{%s,%s,%s,%s}
+                    """ % (header, collector, rules, spanid))
+
+    try:
+        req = requests.post(url, headers=headers, data=body, verify=False)
+        """
+        print(req.status_code)
+        print(req.headers)
+        print(req.text)
+        """
+        if req.status_code == 200:
+            cur5 = conn.cursor()
+            state5 = (
+                         "update ActiveTaps set TapId = %s ,"
+                         "TapExpiry = (date_add(now(),INTERVAL %s minute))"
+                         "where TapName ='%s';") % (TapId, Duration, MirrorName)
+            cur5.execute(state5)
+            userid = Tapowner
+            # username = 'api'
+            cur6 = conn.cursor()
+            state6 = (
+                         "insert into TapsAudit (UserId, UserName, TapUID, TapName, WorkloadUID,"
+                         " WorkloadName, TapCreated, TapActiveID) values(%s, '%s-api',"
+                         "%s,'%s',%s,'%s',now(),%s);") % (
+                         userid, username, TapDestId, TapName, WorkDestId, WorkName, TapId)
+            cur6.execute(state6)
+            app.logger.warning(
+                f'Info - The TAP Destination: {TapName} with Filter: {WorkName} was Added to the system by User: {username}-api')
+
+            conn.commit()
+            cur5.close()
+            cur6.close()
+            return {'status': 'success', 'Duration': Duration, 'TapDest': TapName, 'WorkFilter': WorkName,
+                    'Payload': req.text}
+
+
+        elif req.status_code != 200:
+            flash('Tap failed to be added', 'error')
+            cur5 = conn.cursor()
+            state5 = ("delete from ActiveTaps  where TapName = '%s' and TapId is null;") % (MirrorName)
+            cur5.execute(state5)
+            conn.commit()
+            cur5.close()
+            return {'status': 'failed', 'Duration': Duration, 'TapDest': TapName, 'WorkFilter': WorkName}
+
+
+    except requests.ConnectionError:
+        return {'status': 'failed on submit to PSM', 'Duration': Duration,
+                'TapDest': TapName, 'WorkFilter': WorkName}
+
+    return {'status': 'failed no PSM available', 'Duration': Duration,
+            'TapDest': TapName, 'WorkFilter': WorkName}
+
+
+def deletetapapi(TapDestId, WorkDestId, Tapowner, ipman, cookiekey, username, Duration):
+    '''move the delete out to seperate function for reuse'''
+
+    ## TAP auth and retrieve ##
+    resultstap = targetvalidate(TapDestId, Tapowner)
+    if resultstap is None:
+        return {'status': 'failed Authorization For tool destination', 'Duration': Duration, 'TapDestId': TapDestId,
+                'WorkDestId': WorkDestId}
+
+    TapDestName = resultstap[0]
+
+    resultswork = workloadvalidate(WorkDestId, Tapowner)
+    if resultswork is None:
+        return {'status': 'failed Authorization for workload filter', 'Duration': Duration, 'TapDestId': TapDestId,
+                'WorkDestId': WorkDestId}
+
+    WorkloadDestName = resultswork[0]
+
+    MirrorName = (TapDestName + '-' + WorkloadDestName)
+
+    cur = conn.cursor()
+    result = cur.execute(" select uid, TapName , TapExpiry from ActiveTaps where TapName = %s;", MirrorName)
+    results = cur.fetchone()
+    cur.close()
+    if result > 0:
+        TapActiveID = results[0]
+        url = ('https://%s/configs/monitoring/v1/tenant/default/MirrorSession/%s' % (ipman, MirrorName))
+        headers = ({'Content-Type': 'application/json', 'cookie': cookiekey})
+        # body = """{"meta":{"name":"ExampleMirror"},"spec":{"packet-size":2048,"collectors":[{"type":"erspan_type_3","export-config":{"destination":"192.168.102.106","gateway":"192.168.102.1"},"strip-vlan-hdr":null}],"match-rules":[{"source":{"ip-addresses":["192.168.101.0/24"]},"destination":{"ip-addresses":["any"]},"app-protocol-selectors":{"proto-ports":["any"]}},{"source":{"ip-addresses":["any"]},"destination":{"ip-addresses":["192.168.101.0/24"]},"app-protocol-selectors":{"proto-ports":["any"]}}],"packet-filters":["all-packets"],"interfaces":null,"span-id":2}}"""
+        try:
+            req = requests.delete(url, headers=headers, verify=False)
+            # print(req.status_code)
+            # print(req.headers)
+            # print(req.text)
+
+            if req.status_code == 200:
+                cur = conn.cursor()
+                cur.execute(" Delete from `ActiveTaps` where TapName = %s;", MirrorName)
+                ## commit and close ##
+                conn.commit()
+
+                state3 = (
+                             "update TapsAudit set TapDeleted = now() ,"
+                             "DeletedBy = '%s-api' where TapActiveID = %s and TapName = '%s' and WorkloadName = '%s'"
+                             " and TapDeleted is null;") % (username, TapActiveID, TapDestName, WorkloadDestName)
+                cur.execute(state3)
+                conn.commit()
+                cur.close()
+                app.logger.warning(
+                    f'Info - The TAP Destination: {TapDestName} with Filter: {WorkloadDestName} was Deleted from the system by User: {username}-api')
+
+                return {'status': 'TAP Removed', 'TapDest': TapDestName, 'WorkFilter': WorkloadDestName}
+
+
+        except requests.ConnectionError:
+            return {'status': 'failed on submit request to PSM',
+                    'Duration': Duration, 'TapDest': TapDestName, 'WorkFilter': WorkloadDestName}
+
+    return {'status': 'No Active TAP',
+            'Duration': Duration, 'TapDest': TapDestName, 'WorkFilter': WorkloadDestName}
+
+
+class apitapasid(Resource):
+    def post(self):
+        TapDestId = request.args.get('TapDest', None)
+        WorkDestId = request.args.get('WorkDest', None)
+        Duration = request.args.get('Duration', None)
+        username = request.json.get('username')
+        passid = request.json.get('password')
+        validid = apivalidate(username, passid)
+        if validid == '0':
+            return {'status': 'failed authentication'}
+
+        Tapowner = validid
+
+        ipman = getVar('ipman')[1:-1]
+        cookiekey = getVar('cookiekey')[1:-1]
+        if len(cookiekey) == 0:
+            return {'status': 'PSM not setup'}
+
+        response = createtapapi(TapDestId, WorkDestId, Tapowner, ipman, cookiekey, username, Duration)
+        return response
+
+    def delete(self):
+        TapDestId = request.args.get('TapDest', None)
+        WorkDestId = request.args.get('WorkDest', None)
+        Duration = request.args.get('Duration', None)
+        username = request.json.get('username')
+        passid = request.json.get('password')
+        validid = apivalidate(username, passid)
+        if validid == '0':
+            return {'status': 'failed authentication'}
+
+        Tapowner = validid
+
+        ipman = getVar('ipman')[1:-1]
+        cookiekey = getVar('cookiekey')[1:-1]
+        if len(cookiekey) == 0:
+            return {'status': 'PSM not setup'}
+        response = deletetapapi(TapDestId, WorkDestId, Tapowner, ipman, cookiekey, username, Duration)
+        return response
+
+    def put(self):
+        TapDestId = request.args.get('TapDest', None)
+        WorkDestId = request.args.get('WorkDest', None)
+        Duration = request.args.get('Duration', None)
+        username = request.json.get('username')
+        passid = request.json.get('password')
+        validid = apivalidate(username, passid)
+        if validid == '0':
+            return {'status': 'failed authentication'}
+
+        Tapowner = validid
+
+        ipman = getVar('ipman')[1:-1]
+        cookiekey = getVar('cookiekey')[1:-1]
+        if len(cookiekey) == 0:
+            return {'status': 'PSM not setup'}
+
+        cur = conn.cursor()
+        cur.execute(" select Name from Taps where UID = %s;", TapDestId)
+        result = cur.fetchone()
+        TapDestName = result[0]
+        cur.execute(" select Name from Workloads where UID = %s;", WorkDestId)
+        result = cur.fetchone()
+        WorkDestName = result[0]
+
+        MirrorName = (TapDestName + '-' + WorkDestName)
+
+        result = cur.execute(" select uid, TapName , TapExpiry from ActiveTaps where TapName = %s;", MirrorName)
+        cur.close()
+
+        if result > 0:
+            cur = conn.cursor()
+            cur.execute(" update `ActiveTaps` set TapExpiry = (date_add(now(),INTERVAL %s minute)) "
+                        " where TapName = %s;", (Duration, MirrorName))
+            ## commit and close ##
+            conn.commit()
+            cur.close()
+            response = {'status': 'TAP updated',
+                        'Duration': Duration, 'TapDest': TapDestName, 'WorkFilter': WorkDestName}
+            return response
+        else:
+            response = createtapapi(TapDestId, WorkDestId, Tapowner, ipman, cookiekey, username, Duration)
+            return response
+
+
+class apitapasname(Resource):
+    def post(self):
+        TapDestName = request.args.get('TapDestName', None)
+        WorkDestName = request.args.get('WorkDestName', None)
+        Duration = request.args.get('Duration', None)
+        username = request.json.get('username')
+        passid = request.json.get('password')
+        validid = apivalidate(username, passid)
+        if validid == '0':
+            return {'status': 'failed authentication'}
+
+        Tapowner = validid
+
+        ipman = getVar('ipman')[1:-1]
+        cookiekey = getVar('cookiekey')[1:-1]
+        if len(cookiekey) == 0:
+            return {'status': 'PSM not setup'}
+        cur = conn.cursor()
+        cur.execute(" select uid from Taps where Name = %s;", TapDestName)
+        result = cur.fetchone()
+        TapDestId = result[0]
+        cur.execute(" select uid from Workloads where Name = %s;", WorkDestName)
+        result = cur.fetchone()
+        WorkDestId = result[0]
+        cur.close()
+
+        response = createtapapi(TapDestId, WorkDestId, Tapowner, ipman, cookiekey, username, Duration)
+        return response
+
+    def delete(self):
+        TapDestName = request.args.get('TapDestName', None)
+        WorkDestName = request.args.get('WorkDestName', None)
+        Duration = request.args.get('Duration', None)
+        username = request.json.get('username')
+        passid = request.json.get('password')
+        validid = apivalidate(username, passid)
+        if validid == '0':
+            return {'status': 'failed authentication'}
+
+        Tapowner = validid
+
+        ipman = getVar('ipman')[1:-1]
+        cookiekey = getVar('cookiekey')[1:-1]
+        if len(cookiekey) == 0:
+            return {'status': 'PSM not setup'}
+        cur = conn.cursor()
+        cur.execute(" select uid from Taps where Name = %s;", TapDestName)
+        result = cur.fetchone()
+        TapDestId = result[0]
+        cur.execute(" select uid from Workloads where Name = %s;", WorkDestName)
+        result = cur.fetchone()
+        WorkDestId = result[0]
+        cur.close()
+        response = deletetapapi(TapDestId, WorkDestId, Tapowner, ipman, cookiekey, username, Duration)
+        return response
+
+    def put(self):
+        TapDestName = request.args.get('TapDestName', None)
+        WorkDestName = request.args.get('WorkDestName', None)
+        Duration = request.args.get('Duration', None)
+        username = request.json.get('username')
+        passid = request.json.get('password')
+        validid = apivalidate(username, passid)
+        if validid == '0':
+            return {'status': 'failed authentication'}
+
+        Tapowner = validid
+
+        ipman = getVar('ipman')[1:-1]
+        cookiekey = getVar('cookiekey')[1:-1]
+        if len(cookiekey) == 0:
+            return {'status': 'PSM not setup'}
+        MirrorName = (TapDestName + '-' + WorkDestName)
+
+        cur = conn.cursor()
+        result = cur.execute(" select uid, TapName , TapExpiry from ActiveTaps where TapName = %s;", MirrorName)
+        cur.close()
+
+        if result > 0:
+            cur = conn.cursor()
+            cur.execute(" update `ActiveTaps` set TapExpiry = (date_add(now(),INTERVAL %s minute)) "
+                        " where TapName = %s;", (Duration, MirrorName))
+            ## commit and close ##
+            conn.commit()
+            cur.close()
+            response = {'status': 'TAP updated',
+                        'Duration': Duration, 'TapDest': TapDestName, 'WorkFilter': WorkDestName}
+            return response
+        else:
+            cur = conn.cursor()
+            cur.execute(" select uid from Taps where Name = %s;", TapDestName)
+            result = cur.fetchone()
+            TapDestId = result[0]
+            cur.execute(" select uid from Workloads where Name = %s;", WorkDestName)
+            result = cur.fetchone()
+            WorkDestId = result[0]
+            cur.close()
+
+
+            response = createtapapi(TapDestId, WorkDestId, Tapowner, ipman, cookiekey, username, Duration)
+            return response
+
+
+api.add_resource(apitapasid, '/api/tapasid/')
+api.add_resource(apitapasname, '/api/tapasname/')
+
 
 
 """
@@ -2540,6 +3308,12 @@ class AddAdminForm(Form):
     userpassword = PasswordField('New Password', [validators.DataRequired(),
                                                   validators.EqualTo('checkpwd', message='Passwords must match')])
     checkpwd = PasswordField('Repeat New Password')
+
+class ResetUserPassForm(Form):
+   username = StringField('Login', render_kw={'readonly': True})
+   userpassword = PasswordField('New Password', [validators.DataRequired(),
+                                                  validators.EqualTo('checkpwd', message='Passwords must match')])
+   checkpwd = PasswordField('Repeat New Password')
 
 
 class AddTapTargetForm(Form):
